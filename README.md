@@ -88,6 +88,8 @@ NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
+> **Important:** Change `NEXT_PUBLIC_SITE_URL` to your actual domain (e.g., `https://wiseurl.net`) when deploying to production. This is used for generating correct copy-paste links.
+
 ### 4. Create Admin User
 
 Since there is no public sign-up page (for security), you need to create your first user manually:
