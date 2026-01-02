@@ -1,6 +1,16 @@
 {
   "name": "wiseurl",
   "version": "1.0.0",
+  "description": "The Privacy-First, Self-Hosted Affiliate Link Manager.",
+  "keywords": [
+    "nextjs",
+    "supabase",
+    "affiliate-marketing",
+    "link-shortener",
+    "self-hosted",
+    "analytics",
+    "privacy-focused"
+  ],
   "private": true,
   "scripts": {
     "dev": "next dev",
