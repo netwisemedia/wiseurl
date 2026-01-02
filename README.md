@@ -59,7 +59,7 @@ Clone the repo and start your own instance in minutes.
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/yourusername/WiseUrl.git
+git clone https://github.com/netwisemedia/wiseurl.git
 cd WiseUrl/app
 npm install
 ```
