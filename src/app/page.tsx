@@ -23,7 +23,7 @@ export default function HomePage() {
             Sign In
           </Link>
           <Link
-            href="https://github.com"
+            href="https://github.com/netwisemedia/wiseurl"
             target="_blank"
             className="btn btn-ghost text-gray-400 hover:text-white px-8 py-3"
           >
