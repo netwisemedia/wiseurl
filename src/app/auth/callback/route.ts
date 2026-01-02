@@ -1,15 +1,15 @@
+// The client you created from the Server-Side Auth instructions
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { type NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url)
     const code = searchParams.get('code')
     // if "next" is in param, use it as the redirect URL
     const next = searchParams.get('next') ?? '/dashboard'
 
     if (code) {
-        const cookieStore = await cookies()
+        const cookieStore = await import('next/headers').then(mod => mod.cookies())
         const supabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
