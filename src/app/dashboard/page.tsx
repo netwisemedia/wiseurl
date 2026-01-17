@@ -35,10 +35,18 @@ export default async function DashboardPage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: true })
 
+    // Fetch 404 logs (limit 100 for now)
+    const { data: errorLogs } = await supabase
+        .from('error_404_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
+
     return <DashboardClient
         initialLinks={links || []}
         initialClicks={clicks || []}
         initialGroups={groups || []}
+        initialErrorLogs={errorLogs || []}
         userEmail={user.email}
     />
 }

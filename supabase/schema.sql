@@ -131,3 +131,33 @@ CREATE POLICY "Users can update own groups" ON groups
 DROP POLICY IF EXISTS "Users can delete own groups" ON groups;
 CREATE POLICY "Users can delete own groups" ON groups
   FOR DELETE USING (auth.uid() = user_id);
+
+-- 404 Error Logging (for missing referral tracking)
+CREATE TABLE IF NOT EXISTS error_404_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(50) NOT NULL,
+    original_referrer TEXT,
+    country VARCHAR(100),
+    city VARCHAR(100),
+    device_type VARCHAR(20),
+    os_name VARCHAR(50),
+    browser_name VARCHAR(50),
+    is_bot BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for 404 logs
+CREATE INDEX IF NOT EXISTS idx_error_404_logs_code ON error_404_logs(code);
+CREATE INDEX IF NOT EXISTS idx_error_404_logs_created_at ON error_404_logs(created_at);
+
+-- RLS for error_404_logs
+ALTER TABLE error_404_logs ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Public can insert logs (system level, but need public access for anonymous redirects)
+CREATE POLICY "Public can insert 404 logs" ON error_404_logs
+    FOR INSERT WITH CHECK (true);
+
+-- Policy: Only authenticated users can view logs (admins/dashboard)
+CREATE POLICY "Users can view 404 logs" ON error_404_logs
+    FOR SELECT USING (auth.role() = 'authenticated');
+

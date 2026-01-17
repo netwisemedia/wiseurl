@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Link as LinkType, Click, Group } from '@/lib/types'
+import { Link as LinkType, Click, Group, ErrorLog } from '@/lib/types'
 import {
     LinkIcon,
     Plus,
@@ -19,7 +19,9 @@ import {
     Trash2,
     Download,
     Settings,
-    User
+    User,
+    AlertTriangle,
+    Globe
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -28,6 +30,8 @@ import EditLinkModal from '@/components/EditLinkModal'
 import DeleteLinkModal from '@/components/DeleteLinkModal'
 import AnalyticsCharts from '@/components/AnalyticsCharts'
 import DateRangePicker, { DateRange, getDefaultDateRange } from '@/components/DateRangePicker'
+import RealTimeCounter from '@/components/RealTimeCounter'
+import PeriodComparison from '@/components/PeriodComparison'
 import { exportLinksCSV, exportClicksCSV } from '@/lib/export'
 import GroupManager from '@/components/GroupManager'
 
@@ -35,13 +39,15 @@ interface Props {
     initialLinks: LinkType[]
     initialClicks: Click[]
     initialGroups: Group[]
+    initialErrorLogs: ErrorLog[]
     userEmail?: string
 }
 
-export default function DashboardClient({ initialLinks, initialClicks, initialGroups, userEmail }: Props) {
+export default function DashboardClient({ initialLinks, initialClicks, initialGroups, initialErrorLogs, userEmail }: Props) {
     const links = initialLinks
     const clicks = initialClicks
     const groups = initialGroups
+    const errorLogs = initialErrorLogs
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [editingLink, setEditingLink] = useState<LinkType | null>(null)
@@ -49,10 +55,11 @@ export default function DashboardClient({ initialLinks, initialClicks, initialGr
     const [searchQuery, setSearchQuery] = useState('')
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-    const [activeTab, setActiveTab] = useState<'links' | 'groups' | 'analytics'>('links')
+    const [activeTab, setActiveTab] = useState<'links' | 'groups' | 'analytics' | 'errors'>('links')
     const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange)
     const [showExportMenu, setShowExportMenu] = useState(false)
     const [showUserMenu, setShowUserMenu] = useState(false)
+    const [analyticsSubTab, setAnalyticsSubTab] = useState<'performance' | 'traffic' | 'geography'>('performance')
     const router = useRouter()
     const supabase = createClient()
 
@@ -122,8 +129,9 @@ export default function DashboardClient({ initialLinks, initialClicks, initialGr
             weekClicks: clicks.filter(c => new Date(c.clicked_at) >= weekAgo).length,
             totalLinks: links.length,
             activeLinks: links.filter(l => l.is_active).length,
+            totalErrors: errorLogs.length
         }
-    }, [clicks, links])
+    }, [clicks, links, errorLogs])
 
     // Calculate top links in selected period
     const topLinksInPeriod = useMemo(() => {
@@ -140,7 +148,6 @@ export default function DashboardClient({ initialLinks, initialClicks, initialGr
             }))
             .filter(item => item.link)
             .sort((a, b) => b.clicks - a.clicks)
-            .slice(0, 10)
     }, [filteredClicks, links])
 
     const handleLogout = async () => {
@@ -338,6 +345,17 @@ export default function DashboardClient({ initialLinks, initialClicks, initialGr
                         >
                             <BarChart3 className="w-4 h-4 inline mr-2" />
                             Analytics
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('errors')}
+                            className={`flex-1 sm:flex-none px-4 py-2 rounded-md font-medium transition-all whitespace-nowrap ${activeTab === 'errors'
+                                ? 'bg-[var(--card)] shadow-sm text-[var(--foreground)]'
+                                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                                }`}
+                        >
+                            <AlertTriangle className="w-4 h-4 inline mr-2" />
+                            Errors
+                            {stats.totalErrors > 0 && <span className="ml-2 badge badge-sm badge-destructive">{stats.totalErrors}</span>}
                         </button>
                     </div>
 
@@ -584,88 +602,120 @@ export default function DashboardClient({ initialLinks, initialClicks, initialGr
                 ) : activeTab === 'groups' ? (
                     /* Groups Management */
                     <div className="space-y-6">
-
-
                         <GroupManager
                             groups={groups}
                         />
                     </div>
-                ) : (
-                    /* Analytics View */
-                    <div className="space-y-6">
-                        {/* Top Links in Period */}
-                        <div className="card">
-                            <div className="p-4 border-b border-[var(--border)]">
-                                <h3 className="font-semibold flex items-center gap-2">
-                                    <TrendingUp className="w-4 h-4 text-[var(--primary)]" />
-                                    Top Links in Period
-                                    <span className="text-sm font-normal text-[var(--muted-foreground)]">
-                                        ({filteredClicks.length} clicks)
-                                    </span>
-                                </h3>
-                            </div>
-                            {topLinksInPeriod.length === 0 ? (
-                                <div className="p-8 text-center text-[var(--muted-foreground)]">
-                                    No clicks in selected period
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="table">
-                                        <thead>
-                                            <tr>
-                                                <th>#</th>
-                                                <th>Link</th>
-                                                <th>Clicks</th>
-                                                <th>% of Total</th>
+                ) : activeTab === 'errors' ? (
+                    /* 404 Errors Log */
+                    <div className="card overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Original Referrer</th>
+                                        <th>Location</th>
+                                        <th>Device</th>
+                                        <th>Time</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {errorLogs.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="text-center py-12 text-[var(--muted-foreground)]">
+                                                <Check className="w-12 h-12 mx-auto mb-4 text-green-500 opacity-20" />
+                                                <p>No 404 errors recorded.</p>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        errorLogs.map(log => (
+                                            <tr key={log.id} className="hover:bg-[var(--muted)]/50">
+                                                <td className="font-mono text-[var(--primary)] font-medium">/{log.code}</td>
+                                                <td className="max-w-xs truncate text-[var(--muted-foreground)]" title={log.original_referrer || ''}>
+                                                    {log.original_referrer ? (
+                                                        <a href={log.original_referrer} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-[var(--foreground)]">
+                                                            {log.original_referrer}
+                                                        </a>
+                                                    ) : '-'}
+                                                </td>
+                                                <td>
+                                                    {log.city && log.country ? (
+                                                        <span className="flex items-center gap-1.5">
+                                                            <span className="text-lg">{
+                                                                // Simple flag approximation or just show code
+                                                                log.country
+                                                            }</span>
+                                                            <span className="text-sm">{log.city}, {log.country}</span>
+                                                        </span>
+                                                    ) : log.country ? log.country : '-'}
+                                                </td>
+                                                <td className="text-sm text-[var(--muted-foreground)]">
+                                                    {log.device_type} / {log.os_name}
+                                                </td>
+                                                <td className="text-sm text-[var(--muted-foreground)]">
+                                                    {new Date(log.created_at).toLocaleString()}
+                                                </td>
+                                                <td>
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowCreateModal(true)
+                                                            // We can't pre-fill the modal easily without modifying it, 
+                                                            // but user can copy the code
+                                                            copyToClipboard(log.code)
+                                                        }}
+                                                        className="btn btn-ghost btn-xs gap-1"
+                                                        title="Copy code to create link"
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                        Create
+                                                    </button>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {topLinksInPeriod.map((item, idx) => (
-                                                <tr key={item.link!.id}>
-                                                    <td className="text-[var(--muted-foreground)]">{idx + 1}</td>
-                                                    <td>
-                                                        <div className="flex flex-col">
-                                                            <div className="flex items-center gap-2">
-                                                                <code className="text-sm font-bold text-[var(--primary)]">/{item.link!.code}</code>
-                                                                <a
-                                                                    href={`/links/${item.link!.id}`}
-                                                                    className="text-xs bg-[var(--muted)] hover:bg-[var(--muted)]/80 px-2 py-0.5 rounded text-[var(--foreground)] transition-colors flex items-center gap-1"
-                                                                >
-                                                                    <BarChart3 className="w-3 h-3" />
-                                                                    View Stats
-                                                                </a>
-                                                            </div>
-                                                            {item.link!.title && (
-                                                                <span className="text-sm text-[var(--muted-foreground)] mt-0.5">
-                                                                    {item.link!.title}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="font-bold">{item.clicks}</td>
-                                                    <td>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-16 h-1.5 bg-[var(--muted)] rounded-full">
-                                                                <div
-                                                                    className="h-1.5 bg-[var(--primary)] rounded-full"
-                                                                    style={{ width: `${(item.clicks / filteredClicks.length) * 100}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-sm text-[var(--muted-foreground)]">
-                                                                {((item.clicks / filteredClicks.length) * 100).toFixed(1)}%
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
+                    </div>
+                ) : (
+                    /* Analytics View with Sub-tabs */
+                    <div className="space-y-6">
+                        {/* Real-time Counter */}
+                        <RealTimeCounter clicks={clicks} />
 
-                        {/* Charts */}
-                        <AnalyticsCharts clicks={filteredClicks} />
+                        {/* Period Comparison Stats */}
+                        <PeriodComparison clicks={clicks} />
+
+                        {/* Analytics Sub-tabs */}
+                        <div className="card overflow-hidden">
+                            <div className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+                                <div className="flex gap-1 p-1">
+                                    {(['performance', 'traffic', 'geography'] as const).map(tab => (
+                                        <button
+                                            key={tab}
+                                            onClick={() => setAnalyticsSubTab(tab)}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${analyticsSubTab === tab
+                                                ? 'bg-[var(--card)] shadow-sm text-[var(--foreground)]'
+                                                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                                                }`}
+                                        >
+                                            {tab === 'performance' && <><BarChart3 className="w-4 h-4" /> Link Performance</>}
+                                            {tab === 'traffic' && <><TrendingUp className="w-4 h-4" /> Traffic & Devices</>}
+                                            {tab === 'geography' && <><Globe className="w-4 h-4" /> Geography & Referrers</>}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="p-4 sm:p-6">
+                                <AnalyticsCharts
+                                    clicks={filteredClicks}
+                                    links={links}
+                                    activeSubTab={analyticsSubTab}
+                                />
+                            </div>
+                        </div>
                     </div>
                 )}
             </main>

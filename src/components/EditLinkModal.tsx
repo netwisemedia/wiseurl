@@ -43,6 +43,13 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
 
             if (updateError) throw updateError
 
+            // Invalidate cache for this link
+            fetch('/api/cache/invalidate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: link.code })
+            }).catch(() => { }) // fire-and-forget
+
             router.refresh()
             toast.success('Link updated!')
             onClose()

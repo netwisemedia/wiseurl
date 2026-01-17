@@ -33,6 +33,19 @@ export interface Click {
     clicked_at: string
 }
 
+export interface ErrorLog {
+    id: string
+    code: string
+    original_referrer: string | null
+    country: string | null
+    city: string | null
+    device_type: string | null
+    os_name: string | null
+    browser_name: string | null
+    is_bot: boolean
+    created_at: string
+}
+
 // Analytics aggregation types
 export interface ClickStats {
     total: number

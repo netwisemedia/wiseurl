@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parseUserAgent } from '@/lib/user-agent'
+import { getCachedLink, setCachedLink } from '@/lib/link-cache'
 
 export const runtime = 'edge'
 
@@ -8,19 +9,100 @@ interface Params {
   params: Promise<{ code: string }>
 }
 
+/**
+ * Track click asynchronously - runs in background without blocking redirect
+ */
+async function trackClick(request: NextRequest, code: string, linkId: string): Promise<void> {
+  try {
+    const supabase = await createClient()
+
+    const userAgent = request.headers.get('user-agent') || ''
+    const originalReferrer = request.headers.get('referer') || null
+    const { deviceType, osName, browserName, isBot } = parseUserAgent(userAgent)
+
+    // Get geo data from edge headers (Netlify primary, with fallbacks)
+    const country = request.headers.get('x-nf-geo-country-code') ||
+      request.headers.get('x-vercel-ip-country') ||
+      request.headers.get('cf-ipcountry') || null
+
+    const city = request.headers.get('x-nf-geo-city') ||
+      request.headers.get('x-vercel-ip-city') ||
+      request.headers.get('cf-ipcity') || null
+
+    const { error } = await supabase
+      .from('clicks')
+      .insert({
+        link_id: linkId,
+        code: code,
+        original_referrer: originalReferrer,
+        country: country,
+        city: city,
+        device_type: deviceType,
+        os_name: osName,
+        browser_name: browserName,
+        is_bot: isBot,
+      })
+
+    if (error) {
+      console.error('❌ Click tracking error:', error.message)
+    }
+  } catch (err) {
+    console.error('❌ Click tracking exception:', err)
+  }
+}
+
 export async function GET(request: NextRequest, { params }: Params) {
   const { code } = await params
+
+  // 🚀 Check cache first (instant - bypasses database entirely)
+  const cachedLink = getCachedLink(code)
+
+  if (cachedLink) {
+    // Cache HIT - redirect immediately, track click in background
+    trackClick(request, code, cachedLink.id).catch(() => { })
+    return NextResponse.redirect(cachedLink.destination_url, { status: 302 })
+  }
+
+  // Cache MISS - query database (only happens once per link per server instance)
   const supabase = await createClient()
 
-  // Get link from database
   const { data: link, error } = await supabase
     .from('links')
-    .select('*')
+    .select('id, code, destination_url')
     .eq('code', code)
     .eq('is_active', true)
     .single()
 
   if (error || !link) {
+    // 404 - Link not found
+    const userAgent = request.headers.get('user-agent') || ''
+    const originalReferrer = request.headers.get('referer') || null
+    const { deviceType, osName, browserName, isBot } = parseUserAgent(userAgent)
+
+    const country = request.headers.get('x-nf-geo-country-code') ||
+      request.headers.get('x-vercel-ip-country') ||
+      request.headers.get('cf-ipcountry') || null
+
+    const city = request.headers.get('x-nf-geo-city') ||
+      request.headers.get('x-vercel-ip-city') ||
+      request.headers.get('cf-ipcity') || null
+
+    // Log 404 in background
+    supabase
+      .from('error_404_logs')
+      .insert({
+        code,
+        original_referrer: originalReferrer,
+        country,
+        city,
+        device_type: deviceType,
+        os_name: osName,
+        browser_name: browserName,
+        is_bot: isBot,
+      })
+      .then(() => { })
+      .catch((e: Error) => console.error('❌ 404 log error:', e))
+
     return new NextResponse(
       `<!DOCTYPE html>
       <html lang="en">
@@ -67,48 +149,11 @@ export async function GET(request: NextRequest, { params }: Params) {
     )
   }
 
-  // Extract tracking data
-  const userAgent = request.headers.get('user-agent') || ''
-  const originalReferrer = request.headers.get('referer') || null
-  const { deviceType, osName, browserName, isBot } = parseUserAgent(userAgent)
+  // ✅ Cache link for 1 year (invalidated when link is updated)
+  setCachedLink(code, link.id, link.destination_url)
 
-  // Get geo data from edge headers (NO IP STORED)
-  // Support for Vercel, Netlify, and Cloudflare
-  const country = request.headers.get('x-vercel-ip-country') ||
-    request.headers.get('x-nf-geo-country-code') ||
-    request.headers.get('x-country') ||
-    request.headers.get('cf-ipcountry') || null
+  // Track click in background
+  trackClick(request, code, link.id).catch(() => { })
 
-  const city = request.headers.get('x-vercel-ip-city') ||
-    request.headers.get('x-nf-geo-city') ||
-    request.headers.get('x-city') ||
-    request.headers.get('cf-ipcity') || null
-
-  // Log click (no rate limiting - all clicks count for coupon testing use case)
-  try {
-    const { error } = await supabase
-      .from('clicks')
-      .insert({
-        link_id: link.id,
-        code: code,
-        original_referrer: originalReferrer,
-        country: country,
-        city: city,
-        device_type: deviceType,
-        os_name: osName,
-        browser_name: browserName,
-        is_bot: isBot,
-      })
-
-    if (error) {
-      console.error('❌ Click tracking error:', error.message)
-    } else {
-      console.log('✅ Click tracked:', code, country)
-    }
-  } catch (err) {
-    console.error('❌ Click tracking exception:', err)
-  }
-
-  // HTTP 302 redirect - destination will see wiseurl as referrer
   return NextResponse.redirect(link.destination_url, { status: 302 })
 }

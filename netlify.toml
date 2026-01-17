@@ -8,3 +8,8 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Warm cache after deploy
+[[plugins]]
+  package = "./plugins/cache-warmer"
+

@@ -121,7 +121,7 @@ export default function DateRangePicker({ value, onChange }: Props) {
 }
 
 export function getDefaultDateRange(): DateRange {
-    const preset = presets.find(p => p.label === 'Last 7 days')!
+    const preset = presets.find(p => p.label === 'Today')!
     const dates = preset.getDates()
     return { label: preset.label, ...dates }
 }
