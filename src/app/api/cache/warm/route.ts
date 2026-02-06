@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { setCachedLink, getCacheStats } from '@/lib/link-cache'
+import { setCachedLinkPersistent } from '@/lib/blob-cache'
 
 export const runtime = 'edge'
 
@@ -9,8 +10,7 @@ export const runtime = 'edge'
  * 
  * GET /api/cache/warm
  * 
- * Call this after deploy to pre-populate cache.
- * Each Edge region needs to be warmed separately.
+ * Call this after deploy to pre-populate both L1 (in-memory) and L2 (persistent) cache.
  */
 
 export async function GET() {
@@ -32,10 +32,11 @@ export async function GET() {
             }, { status: 500 })
         }
 
-        // Populate cache
+        // Populate both L1 and L2 cache
         let cached = 0
         for (const link of links || []) {
             setCachedLink(link.code, link.id, link.destination_url)
+            await setCachedLinkPersistent(link.code, link.id, link.destination_url)
             cached++
         }
 
@@ -44,9 +45,9 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            message: `Cache warmed with ${cached} links`,
+            message: `Cache warmed with ${cached} links (L1 + L2)`,
             duration_ms: duration,
-            cache_size: stats.size,
+            l1_cache_size: stats.size,
             links_loaded: cached,
             timestamp: new Date().toISOString()
         })
@@ -57,3 +58,4 @@ export async function GET() {
         }, { status: 500 })
     }
 }
+

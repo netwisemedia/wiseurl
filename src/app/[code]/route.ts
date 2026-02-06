@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parseUserAgent } from '@/lib/user-agent'
 import { getCachedLink, setCachedLink } from '@/lib/link-cache'
+import { getCachedLinkPersistent, setCachedLinkPersistent } from '@/lib/blob-cache'
 
 export const runtime = 'edge'
 
@@ -54,16 +55,25 @@ async function trackClick(request: NextRequest, code: string, linkId: string): P
 export async function GET(request: NextRequest, { params }: Params) {
   const { code } = await params
 
-  // 🚀 Check cache first (instant - bypasses database entirely)
+  // 🚀 L1: Check in-memory cache (instant - same Edge instance)
   const cachedLink = getCachedLink(code)
 
   if (cachedLink) {
-    // Cache HIT - redirect immediately, track click in background
     trackClick(request, code, cachedLink.id).catch(() => { })
     return NextResponse.redirect(cachedLink.destination_url, { status: 302 })
   }
 
-  // Cache MISS - query database (only happens once per link per server instance)
+  // 🚀 L2: Check persistent Blob cache (fast - all Edge instances share this)
+  const blobCached = await getCachedLinkPersistent(code)
+
+  if (blobCached) {
+    // Populate L1 cache for next request on same instance
+    setCachedLink(code, blobCached.id, blobCached.destination_url)
+    trackClick(request, code, blobCached.id).catch(() => { })
+    return NextResponse.redirect(blobCached.destination_url, { status: 302 })
+  }
+
+  // 💾 Cache MISS - query Supabase (only happens once per link globally)
   const supabase = await createClient()
 
   const { data: link, error } = await supabase
@@ -149,8 +159,9 @@ export async function GET(request: NextRequest, { params }: Params) {
     )
   }
 
-  // ✅ Cache link for 1 year (invalidated when link is updated)
+  // ✅ Save to L1 (in-memory) and L2 (persistent Blob) cache
   setCachedLink(code, link.id, link.destination_url)
+  setCachedLinkPersistent(code, link.id, link.destination_url).catch(() => { })
 
   // Track click in background
   trackClick(request, code, link.id).catch(() => { })

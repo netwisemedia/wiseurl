@@ -70,7 +70,7 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('Not authenticated')
 
-            const { error: insertError } = await supabase
+            const { data: newLink, error: insertError } = await supabase
                 .from('links')
                 .insert({
                     code: code.toLowerCase().trim(),
@@ -81,12 +81,27 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
                     tags: tags.split(',').map(t => t.trim()).filter(Boolean),
                     group_id: groupId,
                 })
+                .select('id')
+                .single()
 
             if (insertError) {
                 if (insertError.code === '23505') {
                     throw new Error('This code is already taken. Please choose another.')
                 }
                 throw insertError
+            }
+
+            // Warm cache with new link (fire-and-forget)
+            if (newLink) {
+                fetch('/api/cache/invalidate', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code.toLowerCase().trim(),
+                        id: newLink.id,
+                        destination_url: finalUrl || destinationUrl.trim()
+                    })
+                }).catch(() => { })
             }
 
             router.refresh()

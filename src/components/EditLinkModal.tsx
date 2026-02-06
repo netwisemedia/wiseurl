@@ -43,11 +43,15 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
 
             if (updateError) throw updateError
 
-            // Invalidate cache for this link
+            // Update cache with new destination URL (invalidate + warm)
             fetch('/api/cache/invalidate', {
-                method: 'POST',
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: link.code })
+                body: JSON.stringify({
+                    code: link.code,
+                    id: link.id,
+                    destination_url: destinationUrl.trim()
+                })
             }).catch(() => { }) // fire-and-forget
 
             router.refresh()
