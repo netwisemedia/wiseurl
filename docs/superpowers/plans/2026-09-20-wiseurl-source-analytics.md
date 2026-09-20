@@ -75,8 +75,8 @@
 - Create: `scripts/test-sql.sh`
 
 **Interfaces:**
-- Produces `wiseurl_analytics_report(date, date, text, uuid, uuid) -> jsonb`.
-- Produces `wiseurl_analytics_clicks(date, date, text, uuid, uuid, integer, integer) -> table`.
+- Produces `wiseurl_analytics_report(date, date, text, uuid, uuid, timestamptz) -> jsonb`.
+- Produces `wiseurl_analytics_clicks(date, date, text, uuid, uuid, timestamptz, integer, integer) -> table`.
 
 - [ ] **Step 1: Write SQL assertions first** for additive/idempotent migration, 1,205-event totals, per-owner isolation, source priority/provenance, `www.` normalization, unknown/malformed referrers, bot split, filters, previous-zero states, partial-range equal elapsed comparisons, Bucharest day boundaries including DST, and pagination.
 - [ ] **Step 2: Run `scripts/test-sql.sh` against `wiseurl_test`** and confirm missing migration/functions fail.

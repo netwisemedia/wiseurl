@@ -19,10 +19,16 @@ export async function POST() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  let persistentFailures = 0
   for (const link of links || []) {
     setCachedLink(link.code, link.id, link.destination_url)
-    await setCachedLinkPersistent(link.code, link.id, link.destination_url)
+    if (!await setCachedLinkPersistent(link.code, link.id, link.destination_url)) persistentFailures++
   }
 
-  return NextResponse.json({ success: true, links_loaded: links?.length || 0 })
+  return NextResponse.json({
+    success: true,
+    cache_synced: persistentFailures === 0,
+    links_loaded: links?.length || 0,
+    persistent_failures: persistentFailures,
+  })
 }

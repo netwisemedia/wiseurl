@@ -29,9 +29,14 @@ export default function DeleteLinkModal({ link, onClose }: Props) {
                 const body = await response.json().catch(() => null) as { error?: string } | null
                 throw new Error(body?.error || 'Failed to delete link')
             }
+            const result = await response.json() as { cache_synced?: boolean }
 
             router.refresh()
-            toast.success('Link deleted!')
+            if (result.cache_synced === false) {
+                toast.error('Link deleted, but cache sync failed. A stale redirect may remain for up to five minutes.')
+            } else {
+                toast.success('Link deleted!')
+            }
             onClose()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to delete link')

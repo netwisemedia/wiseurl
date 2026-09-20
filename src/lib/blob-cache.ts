@@ -44,7 +44,7 @@ export async function getCachedLinkPersistent(code: string): Promise<CachedLink 
 /**
  * Store a link in persistent cache
  */
-export async function setCachedLinkPersistent(code: string, id: string, destinationUrl: string): Promise<void> {
+export async function setCachedLinkPersistent(code: string, id: string, destinationUrl: string): Promise<boolean> {
     try {
         const store = getStore('links')
         await store.setJSON(code, {
@@ -52,8 +52,9 @@ export async function setCachedLinkPersistent(code: string, id: string, destinat
             destination_url: destinationUrl,
             cachedAt: Date.now()
         } satisfies CachedLink)
+        return true
     } catch {
-        // Ignore errors - cache is optional optimization
+        return false
     }
 }
 

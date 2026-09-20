@@ -91,6 +91,10 @@ BEGIN
   ASSERT public.wiseurl_normalize_referrer('https://a.b.c.d.e.example.com/path') = 'a.b.c.d.e.example.com', 'deep hostname rejected';
   ASSERT public.wiseurl_normalize_referrer('https://example.com:notaport/path') IS NULL, 'invalid text port accepted';
   ASSERT public.wiseurl_normalize_referrer('https://example.com:99999/path') IS NULL, 'out-of-range port accepted';
+  ASSERT public.wiseurl_normalize_referrer('https://example.com:80:90/path') IS NULL, 'multiple ports accepted';
+  ASSERT public.wiseurl_source_label(E'\t', NULL, NULL, 'https://www.example.com/path') = 'example.com', 'tab-only source must fall back to referrer';
+  ASSERT public.wiseurl_source_kind(E'\t', NULL, NULL, 'https://www.example.com/path') = 'referrer', 'tab-only source provenance mismatch';
+  ASSERT public.wiseurl_source_label(E'\t Label \n', NULL, NULL, NULL) = 'Label', 'source whitespace not normalized';
 END
 $$;
 
@@ -173,7 +177,7 @@ DECLARE
   report_oid oid;
   raw_oid oid;
 BEGIN
-  SELECT oid INTO report_oid FROM pg_proc WHERE oid = 'public.wiseurl_analytics_report(date,date,text,uuid,uuid)'::regprocedure;
+  SELECT oid INTO report_oid FROM pg_proc WHERE oid = 'public.wiseurl_analytics_report(date,date,text,uuid,uuid,timestamp with time zone)'::regprocedure;
   SELECT oid INTO raw_oid FROM pg_proc WHERE oid = 'public.wiseurl_analytics_clicks(date,date,text,uuid,uuid,timestamp with time zone,integer,integer)'::regprocedure;
 
   ASSERT NOT (SELECT prosecdef FROM pg_proc WHERE oid = report_oid), 'report must be security invoker';

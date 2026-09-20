@@ -70,7 +70,13 @@ export async function POST(request: NextRequest) {
 
   const deletedL1 = invalidateCachedLink(result.link.code)
   const deletedL2 = await invalidateCachedLinkPersistent(result.link.code)
-  return NextResponse.json({ success: true, l1_cleared: deletedL1, l2_cleared: deletedL2 })
+  return NextResponse.json({
+    success: true,
+    cache_synced: deletedL2,
+    l1_cleared: deletedL1,
+    l2_cleared: deletedL2,
+    warning: deletedL2 ? null : 'Persistent cache sync failed; stale entries expire within five minutes.',
+  })
 }
 
 export async function PUT(request: NextRequest) {
@@ -81,14 +87,20 @@ export async function PUT(request: NextRequest) {
   if ('response' in result) return result.response
 
   invalidateCachedLink(result.link.code)
-  await invalidateCachedLinkPersistent(result.link.code)
+  const invalidatedPersistent = await invalidateCachedLinkPersistent(result.link.code)
 
+  let cacheSynced = invalidatedPersistent
   if (result.link.is_active) {
     setCachedLink(result.link.code, result.link.id, result.link.destination_url)
-    await setCachedLinkPersistent(result.link.code, result.link.id, result.link.destination_url)
+    cacheSynced = await setCachedLinkPersistent(result.link.code, result.link.id, result.link.destination_url)
   }
 
-  return NextResponse.json({ success: true, warmed: result.link.is_active })
+  return NextResponse.json({
+    success: true,
+    cache_synced: cacheSynced,
+    warmed: result.link.is_active && cacheSynced,
+    warning: cacheSynced ? null : 'Persistent cache sync failed; stale entries expire within five minutes.',
+  })
 }
 
 export async function GET() {
@@ -107,7 +119,7 @@ export async function DELETE(request: NextRequest) {
   if ('response' in result) return result.response
 
   try {
-    await deleteLinkThenInvalidate(
+    const deletion = await deleteLinkThenInvalidate(
       async () => {
         const { error } = await result.supabase
           .from('links')
@@ -118,11 +130,18 @@ export async function DELETE(request: NextRequest) {
       },
       async () => invalidateEverywhere(result.link.code),
     )
+    return NextResponse.json({
+      success: true,
+      deleted: deletion.deleted,
+      cache_synced: deletion.cacheSynced,
+      warning: deletion.cacheSynced
+        ? null
+        : 'Link deleted, but persistent cache sync failed; stale entries expire within five minutes.',
+    })
   } catch (error) {
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Link deletion failed',
     }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
 }

@@ -101,7 +101,8 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
                         id: newLink.id
                     })
                 })
-                cacheSynced = cacheResponse.ok
+                const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
+                cacheSynced = cacheResponse.ok && cacheResult?.cache_synced === true
             }
 
             router.refresh()

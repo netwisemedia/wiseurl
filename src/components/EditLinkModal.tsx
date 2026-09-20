@@ -52,9 +52,10 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
                     id: link.id
                 })
             })
+            const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
 
             router.refresh()
-            if (cacheResponse.ok) toast.success('Link updated!')
+            if (cacheResponse.ok && cacheResult?.cache_synced === true) toast.success('Link updated!')
             else toast.error('Link updated, but cache sync failed. It will self-correct within five minutes.')
             onClose()
         } catch (err) {

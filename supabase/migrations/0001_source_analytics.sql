@@ -66,6 +66,9 @@ BEGIN
   END IF;
 
   IF authority LIKE '%:%' THEN
+    IF length(authority) - length(replace(authority, ':', '')) <> 1 THEN
+      RETURN NULL;
+    END IF;
     port_text := substring(authority FROM ':([^:]*)$');
     IF port_text IS NULL OR port_text !~ '^[0-9]+$' OR port_text::numeric > 65535 THEN
       RETURN NULL;
@@ -98,12 +101,12 @@ AS $$
 DECLARE
   referrer_host text;
 BEGIN
-  IF NULLIF(btrim(p_utm_source), '') IS NOT NULL THEN
-    RETURN left(btrim(p_utm_source), 255);
+  IF NULLIF(btrim(p_utm_source, E' \t\n\r\f\v'), '') IS NOT NULL THEN
+    RETURN left(btrim(p_utm_source, E' \t\n\r\f\v'), 255);
   END IF;
 
-  IF p_stored_kind = 'explicit' AND NULLIF(btrim(p_stored_label), '') IS NOT NULL THEN
-    RETURN left(btrim(p_stored_label), 255);
+  IF p_stored_kind = 'explicit' AND NULLIF(btrim(p_stored_label, E' \t\n\r\f\v'), '') IS NOT NULL THEN
+    RETURN left(btrim(p_stored_label, E' \t\n\r\f\v'), 255);
   END IF;
 
   referrer_host := public.wiseurl_normalize_referrer(p_referrer);
@@ -111,8 +114,8 @@ BEGIN
     RETURN referrer_host;
   END IF;
 
-  IF p_stored_kind = 'referrer' AND NULLIF(btrim(p_stored_label), '') IS NOT NULL THEN
-    RETURN left(lower(btrim(p_stored_label)), 255);
+  IF p_stored_kind = 'referrer' AND NULLIF(btrim(p_stored_label, E' \t\n\r\f\v'), '') IS NOT NULL THEN
+    RETURN left(lower(btrim(p_stored_label, E' \t\n\r\f\v')), 255);
   END IF;
 
   RETURN 'Unknown source';
@@ -131,20 +134,23 @@ IMMUTABLE
 SET search_path = public, pg_temp
 AS $$
   SELECT CASE
-    WHEN NULLIF(btrim(p_utm_source), '') IS NOT NULL THEN 'explicit'
-    WHEN p_stored_kind = 'explicit' AND NULLIF(btrim(p_stored_label), '') IS NOT NULL THEN 'explicit'
+    WHEN NULLIF(btrim(p_utm_source, E' \t\n\r\f\v'), '') IS NOT NULL THEN 'explicit'
+    WHEN p_stored_kind = 'explicit' AND NULLIF(btrim(p_stored_label, E' \t\n\r\f\v'), '') IS NOT NULL THEN 'explicit'
     WHEN public.wiseurl_normalize_referrer(p_referrer) IS NOT NULL THEN 'referrer'
-    WHEN p_stored_kind = 'referrer' AND NULLIF(btrim(p_stored_label), '') IS NOT NULL THEN 'referrer'
+    WHEN p_stored_kind = 'referrer' AND NULLIF(btrim(p_stored_label, E' \t\n\r\f\v'), '') IS NOT NULL THEN 'referrer'
     ELSE 'unknown'
   END
 $$;
+
+DROP FUNCTION IF EXISTS public.wiseurl_analytics_report(date, date, text, uuid, uuid);
 
 CREATE OR REPLACE FUNCTION public.wiseurl_analytics_report(
   p_from date,
   p_to date,
   p_source text DEFAULT NULL,
   p_link_id uuid DEFAULT NULL,
-  p_group_id uuid DEFAULT NULL
+  p_group_id uuid DEFAULT NULL,
+  p_as_of timestamptz DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -172,7 +178,7 @@ BEGIN
 
   range_start := p_from::timestamp AT TIME ZONE 'Europe/Bucharest';
   range_full_end := (p_to + 1)::timestamp AT TIME ZONE 'Europe/Bucharest';
-  range_end := LEAST(range_full_end, statement_timestamp());
+  range_end := LEAST(range_full_end, COALESCE(p_as_of, statement_timestamp()), statement_timestamp());
   previous_start := range_start - (range_end - range_start);
   is_partial := range_end < range_full_end;
 
@@ -383,6 +389,8 @@ BEGIN
 END
 $$;
 
+DROP FUNCTION IF EXISTS public.wiseurl_analytics_clicks(date, date, text, uuid, uuid, integer, integer);
+
 CREATE OR REPLACE FUNCTION public.wiseurl_analytics_clicks(
   p_from date,
   p_to date,
@@ -488,9 +496,9 @@ BEGIN
 END
 $$;
 
-REVOKE ALL ON FUNCTION public.wiseurl_analytics_report(date, date, text, uuid, uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.wiseurl_analytics_report(date, date, text, uuid, uuid, timestamptz) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.wiseurl_analytics_clicks(date, date, text, uuid, uuid, timestamptz, integer, integer) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.wiseurl_analytics_report(date, date, text, uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.wiseurl_analytics_report(date, date, text, uuid, uuid, timestamptz) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.wiseurl_analytics_clicks(date, date, text, uuid, uuid, timestamptz, integer, integer) TO authenticated;
 
 -- Historical 404 rows cannot be assigned safely to a user, so do not expose them.
