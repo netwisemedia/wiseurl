@@ -93,16 +93,20 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
 
             let cacheSynced = true
             if (newLink) {
-                const cacheResponse = await fetch('/api/cache/invalidate', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        code: code.toLowerCase().trim(),
-                        id: newLink.id
+                try {
+                    const cacheResponse = await fetch('/api/cache/invalidate', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code.toLowerCase().trim(),
+                            id: newLink.id
+                        })
                     })
-                })
-                const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
-                cacheSynced = cacheResponse.ok && cacheResult?.cache_synced === true
+                    const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
+                    cacheSynced = cacheResponse.ok && cacheResult?.cache_synced === true
+                } catch {
+                    cacheSynced = false
+                }
             }
 
             router.refresh()

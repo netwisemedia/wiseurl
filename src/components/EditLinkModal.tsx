@@ -44,18 +44,24 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
 
             if (updateError) throw updateError
 
-            const cacheResponse = await fetch('/api/cache/invalidate', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    code: link.code,
-                    id: link.id
+            let cacheSynced = false
+            try {
+                const cacheResponse = await fetch('/api/cache/invalidate', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: link.code,
+                        id: link.id
+                    })
                 })
-            })
-            const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
+                const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
+                cacheSynced = cacheResponse.ok && cacheResult?.cache_synced === true
+            } catch {
+                cacheSynced = false
+            }
 
             router.refresh()
-            if (cacheResponse.ok && cacheResult?.cache_synced === true) toast.success('Link updated!')
+            if (cacheSynced) toast.success('Link updated!')
             else toast.error('Link updated, but cache sync failed. It will self-correct within five minutes.')
             onClose()
         } catch (err) {

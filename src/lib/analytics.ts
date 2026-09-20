@@ -221,6 +221,37 @@ export function analyticsSearchParams(
   return query
 }
 
+export function analyticsDetailHref(linkId: string, scope: AnalyticsScope, asOf: string): string {
+  const query = analyticsSearchParams({
+    ...scope,
+    linkId: null,
+    groupId: null,
+    asOf,
+  })
+  return `/links/${encodeURIComponent(linkId)}?${query.toString()}`
+}
+
+export function parseAnalyticsAsOf(value: string | null | undefined, now = new Date()): string | null {
+  const timestamp = value?.trim()
+  if (!timestamp) return null
+
+  const match = timestamp.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(Z|[+-](\d{2}):(\d{2}))$/)
+  const validDate = match ? isCalendarDate(match[1]) : false
+  const validTime = match
+    ? Number(match[2]) <= 23 && Number(match[3]) <= 59 && Number(match[4]) <= 59
+    : false
+  const offsetHours = match?.[6] ? Number(match[6]) : 0
+  const offsetMinutes = match?.[7] ? Number(match[7]) : 0
+  const validOffset = offsetMinutes <= 59 && (offsetHours < 14 || (offsetHours === 14 && offsetMinutes === 0))
+  const parsed = new Date(timestamp)
+
+  if (!validDate || !validTime || !validOffset || Number.isNaN(parsed.getTime())) {
+    throw new Error('asOf must be a valid timestamp')
+  }
+  if (parsed.getTime() > now.getTime() + 5_000) throw new Error('asOf cannot be in the future')
+  return timestamp
+}
+
 const CSV_COLUMNS: Array<keyof AnalyticsClickRow> = [
   'clicked_at', 'source', 'source_kind', 'code', 'destination_url', 'original_referrer',
   'country', 'city', 'device_type', 'os_name', 'browser_name', 'is_bot',

@@ -6,13 +6,15 @@ import { ArrowLeft, Check, Copy, ExternalLink } from 'lucide-react'
 
 import SourceAnalytics from '@/components/SourceAnalytics'
 import SourceTaggedUrl from '@/components/SourceTaggedUrl'
+import type { AnalyticsScope } from '@/lib/analytics'
 import type { Link as LinkType } from '@/lib/types'
 
 interface Props {
   link: LinkType
+  initialScope: AnalyticsScope & { asOf: string | null }
 }
 
-export default function LinkStatsClient({ link }: Props) {
+export default function LinkStatsClient({ link, initialScope }: Props) {
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
@@ -44,7 +46,7 @@ export default function LinkStatsClient({ link }: Props) {
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <SourceAnalytics links={[link]} groups={[]} fixedLinkId={link.id} />
+        <SourceAnalytics links={[link]} groups={[]} fixedLinkId={link.id} initialScope={initialScope} />
       </main>
     </div>
   )

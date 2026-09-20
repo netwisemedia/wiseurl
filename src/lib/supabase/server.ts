@@ -20,6 +20,9 @@ export async function createClient() {
                             data: [],
                             error: null,
                             range: async () => ({ data: [], error: null }),
+                            order: () => ({
+                                range: async () => ({ data: [], error: null }),
+                            }),
                         }),
                         single: async () => ({ data: null, error: new Error('Supabase not configured') })
                     }),
@@ -32,6 +35,9 @@ export async function createClient() {
                         data: [],
                         error: null,
                         range: async () => ({ data: [], error: null }),
+                        order: () => ({
+                            range: async () => ({ data: [], error: null }),
+                        }),
                     })
                 }),
                 insert: async () => ({ error: null }),

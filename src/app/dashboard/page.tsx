@@ -23,6 +23,7 @@ export default async function DashboardPage() {
             .select('*')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
+            .order('id', { ascending: true })
             .range(offset, offset + METADATA_PAGE_SIZE - 1)
 
         if (error) throw new Error(`Could not load dashboard links: ${error.message}`)
@@ -37,6 +38,7 @@ export default async function DashboardPage() {
             .select('*')
             .eq('user_id', user.id)
             .order('created_at', { ascending: true })
+            .order('id', { ascending: true })
             .range(offset, offset + METADATA_PAGE_SIZE - 1)
 
         if (error) throw new Error(`Could not load dashboard groups: ${error.message}`)

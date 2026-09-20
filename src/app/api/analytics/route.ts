@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import {
   classifyAnalyticsError,
+  parseAnalyticsAsOf,
   rowsToCsv,
   validateAnalyticsScope,
   type AnalyticsClickRow,
@@ -15,14 +16,6 @@ function positiveInteger(value: string | null, fallback: number, maximum: number
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 1) return fallback
   return Math.min(parsed, maximum)
-}
-
-function parseAsOf(value: string | null): string | null {
-  if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) throw new Error('asOf must be a valid timestamp')
-  if (parsed.getTime() > Date.now() + 5_000) throw new Error('asOf cannot be in the future')
-  return parsed.toISOString()
 }
 
 function errorResponse(error: { code?: string; message: string }) {
@@ -55,7 +48,7 @@ export async function GET(request: NextRequest) {
       linkId: request.nextUrl.searchParams.get('link'),
       groupId: request.nextUrl.searchParams.get('group'),
     })
-    asOf = parseAsOf(request.nextUrl.searchParams.get('asOf'))
+    asOf = parseAnalyticsAsOf(request.nextUrl.searchParams.get('asOf'))
   } catch (error) {
     return NextResponse.json({
       status: 'invalid_request',

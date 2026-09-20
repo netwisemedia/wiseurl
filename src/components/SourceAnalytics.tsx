@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import {
   AlertCircle,
   Bot,
@@ -16,6 +17,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 
 import {
   ANALYTICS_TIMEZONE,
+  analyticsDetailHref,
   analyticsSearchParams,
   comparisonLabel,
   getPresetRange,
@@ -28,6 +30,7 @@ interface Props {
   links: LinkType[]
   groups: Group[]
   fixedLinkId?: string
+  initialScope?: AnalyticsScope & { asOf: string | null }
 }
 
 interface ApiErrorBody {
@@ -54,13 +57,14 @@ function shortDestination(value: string | null): string {
   }
 }
 
-export default function SourceAnalytics({ links, groups, fixedLinkId }: Props) {
+export default function SourceAnalytics({ links, groups, fixedLinkId, initialScope }: Props) {
   const initialRange = useMemo(() => getPresetRange(30), [])
   const [scope, setScope] = useState<AnalyticsScope>({
     ...initialRange,
-    source: null,
+    ...initialScope,
+    source: initialScope?.source || null,
     linkId: fixedLinkId || null,
-    groupId: null,
+    groupId: initialScope?.groupId || null,
   })
   const [data, setData] = useState<AnalyticsResponse | null>(null)
   const [asOf, setAsOf] = useState<string | null>(null)
@@ -71,6 +75,7 @@ export default function SourceAnalytics({ links, groups, fixedLinkId }: Props) {
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null)
   const activeRequest = useRef<AbortController | null>(null)
   const requestSequence = useRef(0)
+  const initialSnapshot = useRef(initialScope?.asOf || null)
 
   const requestData = useCallback(async (
     requestedPage: number,
@@ -126,7 +131,8 @@ export default function SourceAnalytics({ links, groups, fixedLinkId }: Props) {
   }, [scope])
 
   useEffect(() => {
-    void requestData(1, null, true)
+    void requestData(1, initialSnapshot.current, true)
+    initialSnapshot.current = null
     return () => {
       activeRequest.current?.abort()
       requestSequence.current += 1
@@ -320,7 +326,14 @@ export default function SourceAnalytics({ links, groups, fixedLinkId }: Props) {
                   <thead><tr><th>Link</th><th>Clicks</th><th>Latest destination</th></tr></thead>
                   <tbody>{data.report.links.map(link => (
                     <tr key={link.id}>
-                      <td><a className="text-[var(--primary)] font-medium" href={`/links/${link.id}`}>/{link.code}</a></td>
+                      <td>
+                        <Link
+                          className="text-[var(--primary)] font-medium"
+                          href={analyticsDetailHref(link.id, scope, asOf || data.asOf)}
+                        >
+                          /{link.code}
+                        </Link>
+                      </td>
                       <td>{link.clicks.toLocaleString()} <span className="text-xs text-[var(--muted-foreground)]">({link.bot_clicks} bot)</span></td>
                       <td className="max-w-[260px] truncate" title={link.latest_destination_url}>{shortDestination(link.latest_destination_url)}</td>
                     </tr>

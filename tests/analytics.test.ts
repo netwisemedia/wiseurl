@@ -3,10 +3,12 @@ import test from 'node:test'
 
 import {
   analyticsSearchParams,
+  analyticsDetailHref,
   buildSourceTaggedUrl,
   classifyAnalyticsError,
   comparisonLabel,
   getPresetRange,
+  parseAnalyticsAsOf,
   rowsToCsv,
   validateAnalyticsScope,
   type AnalyticsClickRow,
@@ -65,6 +67,27 @@ test('serializes the shared scope including a frozen as-of timestamp', () => {
   assert.equal(query.get('asOf'), '2026-09-20T12:00:00.000Z')
   assert.equal(query.get('page'), '3')
   assert.equal(query.has('group'), false)
+})
+
+test('carries the active analytics range, source, and snapshot into link detail', () => {
+  assert.equal(
+    analyticsDetailHref('11111111-1111-4111-8111-111111111111', {
+      from: '2026-09-14',
+      to: '2026-09-20',
+      source: 'site-a.example',
+      linkId: null,
+      groupId: '22222222-2222-4222-8222-222222222222',
+    }, '2026-09-20T12:00:00.000Z'),
+    '/links/11111111-1111-4111-8111-111111111111?from=2026-09-14&to=2026-09-20&source=site-a.example&asOf=2026-09-20T12%3A00%3A00.000Z',
+  )
+})
+
+test('validates analytics snapshots without truncating PostgreSQL microseconds', () => {
+  const value = '2026-09-20T12:00:00.123456+00:00'
+  assert.equal(parseAnalyticsAsOf(value, new Date('2026-09-20T13:00:00Z')), value)
+  assert.throws(() => parseAnalyticsAsOf('2026-02-30T12:00:00Z'), /valid timestamp/)
+  assert.throws(() => parseAnalyticsAsOf('2026-09-20 12:00:00Z'), /valid timestamp/)
+  assert.throws(() => parseAnalyticsAsOf('2026-09-20T12:00:00.1234567Z'), /valid timestamp/)
 })
 
 test('CSV export escapes fields and neutralizes spreadsheet formulas after control whitespace', () => {
