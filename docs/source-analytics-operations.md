@@ -67,3 +67,15 @@ Reload previously open dashboard tabs after deploying this change. Older dashboa
 The analytics database migration is backward-compatible because the new click fields are nullable and the database changes are additive. Restore the previous application version first. Leave the new columns in place to preserve collected attribution data.
 
 If the analytics functions must also be removed later, drop the two `wiseurl_analytics_*` functions and their dedicated indexes only after all application instances use the old version. Do not drop the attribution columns unless their stored data is intentionally being discarded. Restoring the former broad authenticated `error_404_logs` read policy is neither required nor recommended; global 404 history has no owner boundary and is intentionally absent from the admin analytics view.
+
+## Portfolio Overview (migration 0002)
+
+Apply `supabase/migrations/0002_overview.sql` after migration 0001 and before deploying the new dashboard. This adds `wiseurl_overview_report(date,date,text,uuid,text,timestamptz)`, granted only to authenticated callers, with invoker privileges and explicit owner checks. It does not modify tables, collected events, redirects or existing detailed-report RPCs. Rollback can restore the previous app while leaving this additive function in place.
+
+Overview opens all owned links for the last 7 Bucharest calendar days. Today, Yesterday, 30 days, current/previous month and custom ranges up to 366 days are available. The chosen bot mode, group and source apply to all report metrics, rankings and comparisons. Unknown attribution remains explicit; it is excluded from the identified-source count. Names/titles describe configured links, not automatically merged merchant entities. Use groups to scope related company or campaign links.
+
+Partial reports compare the same elapsed duration anchored at the beginning of the preceding calendar interval: Today at 14:00 normally compares yesterday 00:00–14:00. At a daylight-saving boundary the actual comparison times may differ; exact dates/times are shown, durations remain equal and intervals never overlap. Detailed Source reports retain their existing immediately preceding equal-duration comparison and show all bot modes separately, so their previous-period totals may differ from Overview.
+
+All ranking modes preserve prior-only and zero-current links. Gains and drops rank by absolute click change; a zero previous count is New, never a fabricated growth percentage. CSV exports every row matching the selected ranking/search (not just its current page), with date/source/group/traffic scope, previous counts and snapshot. Overview uses authenticated `/api/overview` with private no-store responses. Failures show an error rather than false zero totals.
+
+Reload admin after deployment. Reports refresh on filter changes and on link metadata revision changes after CRUD. Manual Refresh updates the time snapshot. No periodic polling or external merchant crawling is added.

@@ -37,6 +37,7 @@ WiseURL is a powerful, open-source alternative to services like Bitly or Dub.co,
 
 - 🔗 **Short Links** - Create memorable affiliate links like `/hostgator`
 - 🎯 **Link Groups & Tags** - Organize your links with folders and tags
+- 📈 **Portfolio Overview** - Top links, traffic sources, daily trends, gains and drops, today/yesterday and custom reports, with bot filtering and ranking exports
 - 📊 **Source Analytics** - Compare recorded clicks by source site, short link, and destination
 - 📥 **Scoped Data Export** - Export every recorded click in the active analytics scope to CSV
 - 🔍 **Search & Filter** - Quickly find links by name, tag, or date range
@@ -68,10 +69,10 @@ npm install
 
 1. Create a free project at [supabase.com](https://supabase.com)
 2. Go to the SQL Editor and run `supabase/schema.sql`
-3. Run `supabase/migrations/0001_source_analytics.sql` to install the analytics functions and migration-safe policies
+3. Run `supabase/migrations/0001_source_analytics.sql`, then `supabase/migrations/0002_overview.sql` to install source analytics and the portfolio overview
 4. Get your **Project URL** and **anon Key** from Project Settings > API
 
-For an existing installation, run only `supabase/migrations/0001_source_analytics.sql`. Apply the migration before deploying application code. The migration is additive and safe to rerun. See [Source analytics operations](docs/source-analytics-operations.md) for rollout, attribution, cache, and rollback details.
+For an existing installation, run any unapplied migrations in order: `0001_source_analytics.sql`, then `0002_overview.sql`. Apply the migration before deploying application code. The migration is additive and safe to rerun. See [Source analytics operations](docs/source-analytics-operations.md) for rollout, attribution, cache, and rollback details.
 
 ### 3. Configure Environment
 
@@ -118,7 +119,7 @@ The easiest way to deploy WiseURL is with Netlify.
 1. Fork this repository.
 2. Create a new site on Netlify and select your forked repo.
 3. Add your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the Netlify Build settings.
-4. Apply `supabase/migrations/0001_source_analytics.sql` to the production database.
+4. Apply `supabase/migrations/0001_source_analytics.sql`, then `supabase/migrations/0002_overview.sql` to the production database.
 5. Deploy the application only after the migration succeeds.
 
 ## 🤝 Contributing
