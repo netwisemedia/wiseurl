@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { setCachedLinkPersistent } from '@/lib/blob-cache'
-import { setCachedLink } from '@/lib/link-cache'
+import { publishRedirectIfEmpty } from '@/lib/blob-cache'
 import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'edge'
@@ -21,8 +20,7 @@ export async function POST() {
 
   let persistentFailures = 0
   for (const link of links || []) {
-    setCachedLink(link.code, link.id, link.destination_url)
-    if (!await setCachedLinkPersistent(link.code, link.id, link.destination_url)) persistentFailures++
+    if (!await publishRedirectIfEmpty(link.code, { id: link.id, destination_url: link.destination_url })) persistentFailures++
   }
 
   return NextResponse.json({

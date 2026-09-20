@@ -95,7 +95,7 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
             if (newLink) {
                 try {
                     const cacheResponse = await fetch('/api/cache/invalidate', {
-                        method: 'PUT',
+                        method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             code: code.toLowerCase().trim(),
@@ -111,7 +111,7 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
 
             router.refresh()
             if (cacheSynced) toast.success('Link created successfully!')
-            else toast.error('Link created, but cache sync failed. It will self-correct within five minutes.')
+            else toast.success('Link created; redirects will use the database until the cache is available.')
             onClose()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create link')

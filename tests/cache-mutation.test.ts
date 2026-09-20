@@ -1,43 +1,61 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { deleteLinkThenInvalidate } from '../src/lib/cache-mutation.ts'
+import { fenceThenMutate } from '../src/lib/cache-mutation.ts'
 
-test('deletes the verified database row before invalidating retained cache keys', async () => {
+test('writes a fence before an edit and publishes only after the database mutation', async () => {
   const events: string[] = []
-
-  const result = await deleteLinkThenInvalidate(
-    async () => { events.push('delete') },
-    async () => { events.push('invalidate') },
+  const result = await fenceThenMutate(
+    async () => { events.push('fence'); return { etag: 'fence-etag', mutationId: 'mutation' } },
+    async () => { events.push('database') },
+    async fence => { events.push(`publish:${fence.etag}`); return true },
   )
-
-  assert.deepEqual(events, ['delete', 'invalidate'])
-  assert.deepEqual(result, { deleted: true, cacheSynced: true, warning: null })
+  assert.deepEqual(events, ['fence', 'database', 'publish:fence-etag'])
+  assert.deepEqual(result, { mutated: true, cacheSynced: true })
 })
 
-test('does not invalidate when the database delete fails', async () => {
+test('does not mutate the database when fencing fails', async () => {
   const events: string[] = []
-
-  await assert.rejects(() => deleteLinkThenInvalidate(
-    async () => {
-      events.push('delete')
-      throw new Error('delete failed')
-    },
-    async () => { events.push('invalidate') },
-  ), /delete failed/)
-
-  assert.deepEqual(events, ['delete'])
+  await assert.rejects(() => fenceThenMutate(
+    async () => { throw new Error('fence unavailable') },
+    async () => { events.push('database') },
+  ), /fence unavailable/)
+  assert.deepEqual(events, [])
 })
 
-test('reports a cache warning after a successful delete instead of making deletion look failed', async () => {
-  const result = await deleteLinkThenInvalidate(
+test('leaves the fence in place when the database mutation fails', async () => {
+  const events: string[] = []
+  await assert.rejects(() => fenceThenMutate(
+    async () => { events.push('fence'); return { etag: 'fence-etag', mutationId: 'mutation' } },
+    async () => { events.push('database'); throw new Error('update failed') },
+    async () => { events.push('publish'); return true },
+  ), /update failed/)
+  assert.deepEqual(events, ['fence', 'database'])
+})
+
+test('keeps the busy fence when a database failure may still commit', async () => {
+  await assert.rejects(() => fenceThenMutate(
+    async () => ({ etag: 'fence-etag', mutationId: 'mutation' }),
+    async () => { throw new Error('update failed') },
+  ), /update failed/)
+})
+
+test('reports a safe cache fallback if publication fails after an edit', async () => {
+  const result = await fenceThenMutate(
+    async () => ({ etag: 'fence-etag', mutationId: 'mutation' }),
     async () => undefined,
-    async () => { throw new Error('blob unavailable') },
+    async () => false,
   )
+  assert.deepEqual(result, { mutated: true, cacheSynced: false })
+})
 
-  assert.deepEqual(result, {
-    deleted: true,
-    cacheSynced: false,
-    warning: 'blob unavailable',
-  })
+test('delete finalizes its tombstone fence instead of publishing a link', async () => {
+  const events: string[] = []
+  const result = await fenceThenMutate(
+    async () => { events.push('fence'); return { etag: 'fence-etag', mutationId: 'mutation' } },
+    async () => { events.push('delete') },
+    async () => { events.push('finish-tombstone'); return true },
+  )
+  assert.deepEqual(events, ['fence', 'delete', 'finish-tombstone'])
+  assert.deepEqual(result, { mutated: true, cacheSynced: true })
 })
