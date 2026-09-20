@@ -9,6 +9,7 @@ export interface ClickBase {
   linkId: string
   code: string
   clickId: string
+  destinationSnapshot: string
   originalReferrer: string | null
   country: string | null
   city: string | null
@@ -29,6 +30,7 @@ export interface ClickPayload extends Record<string, unknown> {
   browser_name: string
   is_bot: boolean
   click_id: string
+  destination_url_snapshot: string
   utm_source: string | null
   utm_medium: string | null
   utm_campaign: string | null
@@ -80,6 +82,7 @@ export function buildClickPayload(base: ClickBase, attribution: Attribution): Cl
     browser_name: base.browserName,
     is_bot: base.isBot,
     click_id: base.clickId,
+    destination_url_snapshot: base.destinationSnapshot,
     ...attribution,
     source_label: source.label,
     source_kind: source.kind,

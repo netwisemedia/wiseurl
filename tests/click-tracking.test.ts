@@ -13,6 +13,7 @@ const baseClick = {
   linkId: '00000000-0000-4000-8000-000000000001',
   code: 'offer',
   clickId: '00000000-0000-4000-8000-000000000099',
+  destinationSnapshot: 'https://merchant.example/original?affiliate=abc',
   originalReferrer: 'https://www.publisher.example/story',
   country: 'RO',
   city: 'Bucharest',
@@ -32,6 +33,7 @@ test('stores source UTM internally while destination does not receive incoming U
   assert.equal(payload.source_label, 'publisher-site')
   assert.equal(payload.source_kind, 'explicit')
   assert.equal(payload.sub_id1, 'reader-4')
+  assert.equal(payload.destination_url_snapshot, baseClick.destinationSnapshot)
   assert.equal(destination.searchParams.has('utm_source'), false)
   assert.equal(destination.searchParams.has('utm_campaign'), false)
   assert.equal(destination.searchParams.get('subid'), 'reader-4')

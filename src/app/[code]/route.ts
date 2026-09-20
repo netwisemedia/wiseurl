@@ -62,6 +62,7 @@ async function recordClick(
   code: string,
   linkId: string,
   clickId: string,
+  destinationSnapshot: string,
   incoming: URLSearchParams,
 ): Promise<void> {
   const supabase = await createClient()
@@ -72,6 +73,7 @@ async function recordClick(
     linkId,
     code,
     clickId,
+    destinationSnapshot,
     originalReferrer,
     country,
     city,
@@ -192,7 +194,7 @@ async function handleRequest(request: NextRequest, { params }: Params, shouldTra
     })
   }
 
-  if (shouldTrack) await recordClick(request, code, link.id, clickId, incoming)
+  if (shouldTrack) await recordClick(request, code, link.id, clickId, link.destination_url, incoming)
 
   return new NextResponse(createHandoffDocument(destination), {
     status: 200,
