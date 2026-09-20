@@ -115,6 +115,7 @@ export default function SourceAnalytics({ links, groups, fixedLinkId, initialSco
       setData(result)
       setAsOf(result.asOf)
       setPage(result.pagination.page)
+      if (initialSnapshot.current === snapshot) initialSnapshot.current = null
       if (updateRefreshTime) setRefreshedAt(result.refreshedAt)
     } catch (requestError) {
       if (requestError instanceof DOMException && requestError.name === 'AbortError') return
@@ -132,7 +133,6 @@ export default function SourceAnalytics({ links, groups, fixedLinkId, initialSco
 
   useEffect(() => {
     void requestData(1, initialSnapshot.current, true)
-    initialSnapshot.current = null
     return () => {
       activeRequest.current?.abort()
       requestSequence.current += 1
@@ -144,6 +144,7 @@ export default function SourceAnalytics({ links, groups, fixedLinkId, initialSco
     requestSequence.current += 1
     setData(null)
     setAsOf(null)
+    initialSnapshot.current = null
     setPage(1)
     setError(null)
     setSetupNeeded(false)
