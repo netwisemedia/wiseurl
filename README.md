@@ -37,8 +37,8 @@ WiseURL is a powerful, open-source alternative to services like Bitly or Dub.co,
 
 - 🔗 **Short Links** - Create memorable affiliate links like `/hostgator`
 - 🎯 **Link Groups & Tags** - Organize your links with folders and tags
-- 📊 **Detailed Analytics** - Track clicks, OS breakdown, and top performing links
-- 📥 **Data Export** - Export your link data and click stats to CSV
+- 📊 **Source Analytics** - Compare recorded clicks by source site, short link, and destination
+- 📥 **Scoped Data Export** - Export every recorded click in the active analytics scope to CSV
 - 🔍 **Search & Filter** - Quickly find links by name, tag, or date range
 - 📱 **Responsive** - Works great on mobile and desktop
 - ⚡ **Edge Performance** - Lightning-fast redirects worldwide
@@ -67,8 +67,11 @@ npm install
 ### 2. Set up Supabase
 
 1. Create a free project at [supabase.com](https://supabase.com)
-2. Go to the SQL Editor and run the contents of `supabase/schema.sql`
-3. Get your **Project URL** and **anon Key** from Project Settings > API
+2. Go to the SQL Editor and run `supabase/schema.sql`
+3. Run `supabase/migrations/0001_source_analytics.sql` to install the analytics functions and migration-safe policies
+4. Get your **Project URL** and **anon Key** from Project Settings > API
+
+For an existing installation, run only `supabase/migrations/0001_source_analytics.sql`. Apply the migration before deploying application code. The migration is additive and safe to rerun. See [Source analytics operations](docs/source-analytics-operations.md) for rollout, attribution, cache, and rollback details.
 
 ### 3. Configure Environment
 
@@ -115,7 +118,8 @@ The easiest way to deploy WiseURL is with Netlify.
 1. Fork this repository.
 2. Create a new site on Netlify and select your forked repo.
 3. Add your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the Netlify Build settings.
-4. Deploy!
+4. Apply `supabase/migrations/0001_source_analytics.sql` to the production database.
+5. Deploy the application only after the migration succeeds.
 
 ## 🤝 Contributing
 
@@ -129,7 +133,7 @@ We welcome contributions! Please feel free to **Fork** this repository and modif
 
 ## 🔒 Privacy
 
-WiseURL does not store IP addresses. Only country-level geo data is collected for analytics.
+WiseURL does not store IP addresses. It records source labels, the incoming referrer, campaign and affiliate parameters, coarse request metadata, and the configured destination at click time. Review [Source analytics operations](docs/source-analytics-operations.md) before deployment.
 
 ## License
 
