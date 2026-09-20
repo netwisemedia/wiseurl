@@ -38,7 +38,7 @@ async function resolveLink(code: string): Promise<ResolvedLink | null> {
 
   const persistent = await getCachedLinkPersistent(code)
   if (persistent) {
-    setCachedLink(code, persistent.id, persistent.destination_url)
+    setCachedLink(code, persistent.id, persistent.destination_url, persistent.expiresAt)
     return persistent
   }
 
