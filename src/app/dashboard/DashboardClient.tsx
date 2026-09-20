@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   BarChart3,
+  LayoutDashboard,
+  FolderOpen,
+  ChevronRight,
   Check,
   Copy,
   ExternalLink,
@@ -23,6 +26,7 @@ import DeleteLinkModal from '@/components/DeleteLinkModal'
 import EditLinkModal from '@/components/EditLinkModal'
 import GroupManager from '@/components/GroupManager'
 import SourceAnalytics from '@/components/SourceAnalytics'
+import Overview from '@/components/overview/Overview'
 import SourceTaggedUrl from '@/components/SourceTaggedUrl'
 import { createClient } from '@/lib/supabase/client'
 import type { Group, Link as LinkType } from '@/lib/types'
@@ -33,7 +37,7 @@ interface Props {
   userEmail?: string
 }
 
-type Tab = 'links' | 'groups' | 'analytics'
+type Tab = 'overview' | 'links' | 'groups' | 'analytics'
 
 const GROUP_COLORS: Record<string, string> = {
   red: 'bg-red-500', blue: 'bg-blue-500', green: 'bg-green-500', yellow: 'bg-yellow-500',
@@ -51,7 +55,9 @@ function destinationHost(value: string): string {
 export default function DashboardClient({ initialLinks, initialGroups, userEmail }: Props) {
   const links = initialLinks
   const groups = initialGroups
-  const [activeTab, setActiveTab] = useState<Tab>('links')
+  const searchParams = useSearchParams()
+  const requestedView = searchParams.get('view')
+  const activeTab: Tab = requestedView === 'links' || requestedView === 'groups' || requestedView === 'analytics' ? requestedView : 'overview'
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -62,6 +68,17 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
   const [showUserMenu, setShowUserMenu] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const setActiveTab = (tab: Tab) => {
+    const query = new URLSearchParams(searchParams.toString())
+    query.set('view', tab)
+    router.replace(`/dashboard?${query}`, { scroll: false })
+  }
+  const navigation = [
+    { id: 'overview' as const, label: 'Overview', icon: LayoutDashboard },
+    { id: 'links' as const, label: 'Links', icon: LinkIcon },
+    { id: 'analytics' as const, label: 'Source reports', icon: BarChart3 },
+    { id: 'groups' as const, label: 'Groups', icon: FolderOpen },
+  ]
 
   const filteredLinks = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -102,54 +119,27 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
-      <header className="sticky top-0 z-40 bg-[var(--card)] border-b border-[var(--border)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <button type="button" onClick={() => setActiveTab('links')} className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-lg bg-gradient-primary flex items-center justify-center"><LinkIcon className="w-5 h-5 text-white" /></span>
-            <span className="text-lg font-bold">WiseURL</span>
-          </button>
-          <div className="relative">
-            <button type="button" onClick={() => setShowUserMenu(open => !open)} className="w-9 h-9 rounded-full bg-gradient-primary text-white flex items-center justify-center font-semibold">
-              {userEmail?.[0]?.toUpperCase() || <User className="w-4 h-4" />}
-            </button>
-            {showUserMenu && (
-              <div className="absolute right-0 top-12 w-60 card p-2 shadow-xl z-50">
-                {userEmail && <p className="px-3 py-2 text-sm truncate text-[var(--muted-foreground)]">{userEmail}</p>}
-                <Link href="/settings" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--muted)]"><Settings className="w-4 h-4" /> Settings</Link>
-                <button type="button" onClick={logout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-red-500 hover:bg-red-500/10"><LogOut className="w-4 h-4" /> Log out</button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        <div className="grid sm:grid-cols-3 gap-4">
-          <div className="card p-5"><p className="text-sm text-[var(--muted-foreground)]">Links</p><p className="text-3xl font-bold mt-2">{links.length}</p></div>
-          <div className="card p-5"><p className="text-sm text-[var(--muted-foreground)]">Active links</p><p className="text-3xl font-bold mt-2">{links.filter(link => link.is_active).length}</p></div>
-          <div className="card p-5"><p className="text-sm text-[var(--muted-foreground)]">Groups</p><p className="text-3xl font-bold mt-2">{groups.length}</p></div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex gap-1 p-1 bg-[var(--muted)] rounded-lg overflow-x-auto">
-            <button type="button" onClick={() => setActiveTab('links')} className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'links' ? 'bg-[var(--card)] shadow-sm' : 'text-[var(--muted-foreground)]'}`}><LinkIcon className="w-4 h-4 inline mr-2" />Links</button>
-            <button type="button" onClick={() => setActiveTab('groups')} className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'groups' ? 'bg-[var(--card)] shadow-sm' : 'text-[var(--muted-foreground)]'}`}><Settings className="w-4 h-4 inline mr-2" />Groups</button>
-            <button type="button" onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'analytics' ? 'bg-[var(--card)] shadow-sm' : 'text-[var(--muted-foreground)]'}`}><BarChart3 className="w-4 h-4 inline mr-2" />Analytics</button>
-          </div>
-          {activeTab === 'links' && (
-            <button type="button" className="btn btn-primary" onClick={() => setShowCreateModal(true)}><Plus className="w-4 h-4" /> New link</button>
-          )}
-        </div>
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <button type="button" onClick={() => setActiveTab('overview')} className="brand-button" aria-label="WiseURL overview"><span className="brand-mark"><LinkIcon size={21} /></span><span>wiseurl<span className="text-[var(--primary)]">.</span></span></button>
+        <p className="sidebar-caption">WORKSPACE</p>
+        <nav className="admin-nav" aria-label="Main navigation">{navigation.map(item => <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} aria-current={activeTab === item.id ? 'page' : undefined} className={activeTab === item.id ? 'active' : ''}><item.icon size={18} /><span>{item.label}</span>{item.id === 'links' && <span className="nav-count">{links.length}</span>}</button>)}</nav>
+        <div className="sidebar-bottom"><div className="workspace-note"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500 mr-2" />{links.filter(link => link.is_active).length} active links<p>Your links. Your traffic.</p></div><Link href="/settings" className="sidebar-settings"><Settings size={17} />Settings</Link></div>
+      </aside>
+      <div className="admin-content">
+        <header className="admin-topbar"><div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]"><span className="hidden sm:inline">Workspace</span><ChevronRight size={13} className="hidden sm:block" /><span className="font-medium text-[var(--foreground)]">{navigation.find(item => item.id === activeTab)?.label}</span></div><div className="flex items-center gap-3"><button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}><Plus size={15} />New link</button><div className="relative"><button type="button" aria-label="Account menu" aria-expanded={showUserMenu} onClick={() => setShowUserMenu(open => !open)} className="account-avatar">{userEmail?.[0]?.toUpperCase() || <User size={16} />}</button>{showUserMenu && <div className="absolute right-0 top-12 w-60 card p-2 shadow-xl z-50">{userEmail && <p className="px-3 py-2 text-sm truncate text-[var(--muted-foreground)]">{userEmail}</p>}<Link href="/settings" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--muted)]"><Settings size={16} />Settings</Link><button type="button" onClick={logout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-red-500 hover:bg-red-500/10"><LogOut size={16} />Log out</button></div>}</div></div></header>
+        <main className="admin-main">
+        {activeTab === 'overview' && <Overview groups={groups} revision={links.map(link => `${link.id}:${link.updated_at}`).join(',')} onCreate={() => setShowCreateModal(true)} />}
+        {activeTab !== 'overview' && <div className="mb-6"><p className="eyebrow">YOUR AFFILIATE WORKSPACE</p><h1 className="page-title">{activeTab === 'links' ? 'Your links' : activeTab === 'groups' ? 'Link groups' : 'Source reports'}</h1><p className="page-description">{activeTab === 'links' ? 'Manage your destinations, copy publishing URLs and explore each link.' : activeTab === 'groups' ? 'Organize links by company, campaign or channel.' : 'Explore attribution, destinations and individual click events.'}</p></div>}
 
         {activeTab === 'links' && (
           <div className="space-y-4">
             <div className="card p-4 flex flex-col md:flex-row gap-3">
               <label className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                <input value={searchQuery} onChange={event => changeSearch(event.target.value)} className="input pl-9" placeholder="Search links, titles, or destinations" />
+                <input value={searchQuery} onChange={event => changeSearch(event.target.value)} className="input pl-9!" aria-label="Search links" placeholder="Search links, titles, or destinations" />
               </label>
-              <select value={selectedGroupId || ''} onChange={event => changeGroup(event.target.value || null)} className="input md:w-56">
+              <select aria-label="Filter links by group" value={selectedGroupId || ''} onChange={event => changeGroup(event.target.value || null)} className="input md:w-56">
                 <option value="">All groups</option>
                 {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
               </select>
@@ -169,7 +159,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
                           <td>
                             <div className="flex items-center gap-2">
                               <Link href={`/links/${link.id}`} className="font-mono font-semibold text-[var(--primary)]">/{link.code}</Link>
-                              <button type="button" onClick={() => void copyShortLink(link.code)} className="p-1 rounded hover:bg-[var(--muted)]" title="Copy short URL">
+                              <button type="button" onClick={() => void copyShortLink(link.code)} className="p-1 rounded hover:bg-[var(--muted)]" title="Copy short URL" aria-label={`Copy /${link.code}`}>
                                 {copiedCode === link.code ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                               </button>
                             </div>
@@ -186,8 +176,8 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
                           <td>
                             <div className="flex gap-1">
                               <Link href={`/links/${link.id}`} className="p-2 rounded hover:bg-[var(--muted)] text-[var(--primary)]" title="View analytics"><BarChart3 className="w-4 h-4" /></Link>
-                              <button type="button" onClick={() => setEditingLink(link)} className="p-2 rounded hover:bg-[var(--muted)]" title="Edit"><Pencil className="w-4 h-4" /></button>
-                              <button type="button" onClick={() => setDeletingLink(link)} className="p-2 rounded hover:bg-red-500/10 text-red-500" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                              <button type="button" onClick={() => setEditingLink(link)} className="p-2 rounded hover:bg-[var(--muted)]" title="Edit" aria-label={`Edit /${link.code}`}><Pencil className="w-4 h-4" /></button>
+                              <button type="button" onClick={() => setDeletingLink(link)} className="p-2 rounded hover:bg-red-500/10 text-red-500" title="Delete" aria-label={`Delete /${link.code}`}><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>
@@ -212,6 +202,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
         {activeTab === 'groups' && <GroupManager groups={groups} />}
         {activeTab === 'analytics' && <SourceAnalytics links={links} groups={groups} />}
       </main>
+      </div>
 
       {showCreateModal && <CreateLinkModal groups={groups} onClose={() => setShowCreateModal(false)} />}
       {editingLink && <EditLinkModal link={editingLink} groups={groups} onClose={() => setEditingLink(null)} />}

@@ -46,6 +46,7 @@ export default function LinkStatsClient({ link, initialScope }: Props) {
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <p className="text-xs text-[var(--muted-foreground)] mb-4">Detailed reports include all recorded clicks, with non-bot and bot counts shown separately.</p>
         <SourceAnalytics links={[link]} groups={[]} fixedLinkId={link.id} initialScope={initialScope} />
       </main>
     </div>
