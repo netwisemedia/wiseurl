@@ -31,6 +31,19 @@ export interface Click {
     browser_name: string | null
     is_bot: boolean
     clicked_at: string
+    click_id: string | null
+    utm_source: string | null
+    utm_medium: string | null
+    utm_campaign: string | null
+    utm_content: string | null
+    utm_term: string | null
+    sub_id1: string | null
+    sub_id2: string | null
+    sub_id3: string | null
+    query_params: Record<string, string> | null
+    source_label: string | null
+    source_kind: 'explicit' | 'referrer' | 'unknown' | null
+    destination_url_snapshot: string | null
 }
 
 export interface ErrorLog {

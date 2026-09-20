@@ -25,13 +25,5 @@ export default async function LinkStatsPage({ params }: Props) {
 
     if (linkError || !link) notFound()
 
-    // Get clicks for this link
-    const { data: clicks } = await supabase
-        .from('clicks')
-        .select('*')
-        .eq('link_id', id)
-        .eq('is_bot', false)
-        .order('clicked_at', { ascending: false })
-
-    return <LinkStatsClient link={link} clicks={clicks || []} />
+    return <LinkStatsClient link={link} />
 }

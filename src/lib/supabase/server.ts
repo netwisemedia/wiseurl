@@ -16,7 +16,11 @@ export async function createClient() {
                 select: () => ({
                     eq: () => ({
                         eq: () => ({ single: async () => ({ data: null, error: new Error('Supabase not configured') }) }),
-                        order: () => ({ data: [], error: null }),
+                        order: () => ({
+                            data: [],
+                            error: null,
+                            range: async () => ({ data: [], error: null }),
+                        }),
                         single: async () => ({ data: null, error: new Error('Supabase not configured') })
                     }),
                     in: () => ({
@@ -24,7 +28,11 @@ export async function createClient() {
                             order: () => ({ data: [], error: null })
                         })
                     }),
-                    order: () => ({ data: [], error: null })
+                    order: () => ({
+                        data: [],
+                        error: null,
+                        range: async () => ({ data: [], error: null }),
+                    })
                 }),
                 insert: async () => ({ error: null }),
             }),
