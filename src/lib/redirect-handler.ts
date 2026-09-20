@@ -62,7 +62,7 @@ export async function handleRedirect(request: Request, code: string, dependencie
   if (method === 'GET') {
     const payload = buildClickPayload({ linkId: link.id, code, clickId, destinationSnapshot: link.destination_url,
       originalReferrer, country: geo.country, city: geo.city, deviceType, osName, browserName, isBot }, extractAttribution(incoming))
-    payload.created_at = new Date().toISOString()
+    payload.clicked_at = new Date().toISOString()
     dependencies.schedule(() => dependencies.record(payload))
   }
   const body = method === 'HEAD' ? null : createHandoffDocument(destination)

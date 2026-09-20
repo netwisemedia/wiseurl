@@ -27,6 +27,8 @@ test('returns a silent redirect while analytics remains pending, retaining sourc
   assert.equal(payload?.source_label, 'couponswift')
   assert.equal(payload?.original_referrer, 'https://www.couponswift.com/')
   assert.ok(payload?.click_id)
+  assert.equal(typeof payload?.clicked_at, 'string')
+  assert.equal(payload?.created_at, undefined, 'clicks schema uses clicked_at, not created_at')
   assert.ok(html.includes(payload!.click_id))
   release()
   await pending
