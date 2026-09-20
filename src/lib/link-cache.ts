@@ -2,7 +2,8 @@
  * In-memory cache for link redirects
  * 
  * Eliminates database latency for repeat visitors.
- * Cache entries last 1 year or until manually invalidated via API.
+ * Cache entries last 30 seconds or until manually invalidated via API.
+ * The short TTL bounds stale redirects across edge instances that do not share L1 memory.
  */
 
 interface CachedLink {
@@ -14,8 +15,7 @@ interface CachedLink {
 // Global cache - persists across Edge function invocations in same region
 const linkCache = new Map<string, CachedLink>()
 
-// Cache TTL: 1 year (effectively permanent - invalidate on update)
-const CACHE_TTL = 365 * 24 * 60 * 60 * 1000
+const CACHE_TTL = 30 * 1000
 
 /**
  * Get a link from cache if it exists and hasn't expired
@@ -27,7 +27,7 @@ export function getCachedLink(code: string): CachedLink | null {
         return null
     }
 
-    // Check if expired (shouldn't happen with 1 year TTL, but safety check)
+    // Cross-instance invalidation cannot reach every in-memory map, so expiry is required.
     if (Date.now() - cached.cachedAt > CACHE_TTL) {
         linkCache.delete(code)
         return null
