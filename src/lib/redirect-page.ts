@@ -28,10 +28,8 @@ export function createHandoffDocument(destination: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="origin">
   <meta http-equiv="refresh" content="0;url=${safeDestination}">
-  <title>Continue to destination</title>
+  <title>WiseURL</title>
 </head>
-<body>
-  <p>Opening destination… <a href="${safeDestination}">Continue</a></p>
-</body>
+<body></body>
 </html>`
 }
