@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Link as LinkType, Group } from '@/lib/types'
 import { X, LinkIcon, Loader2, Save } from 'lucide-react'
@@ -22,7 +21,6 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState('')
     const router = useRouter()
-    const supabase = createClient()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -32,37 +30,24 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
         try {
             validateHttpUrl(destinationUrl)
 
-            const { error: updateError } = await supabase
-                .from('links')
-                .update({
+            const response = await fetch('/api/cache/invalidate', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: link.id,
+                    code: link.code,
                     destination_url: destinationUrl.trim(),
                     title: title.trim() || null,
                     group_id: groupId,
                     is_active: isActive,
                 })
-                .eq('id', link.id)
-
-            if (updateError) throw updateError
-
-            let cacheSynced = false
-            try {
-                const cacheResponse = await fetch('/api/cache/invalidate', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        code: link.code,
-                        id: link.id
-                    })
-                })
-                const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
-                cacheSynced = cacheResponse.ok && cacheResult?.cache_synced === true
-            } catch {
-                cacheSynced = false
-            }
+            })
+            const result = await response.json().catch(() => null) as { error?: string; cache_synced?: boolean } | null
+            if (!response.ok) throw new Error(result?.error || 'Failed to update link')
 
             router.refresh()
-            if (cacheSynced) toast.success('Link updated!')
-            else toast.error('Link updated, but cache sync failed. It will self-correct within five minutes.')
+            if (result?.cache_synced) toast.success('Link updated!')
+            else toast.success('Link updated. Save again to retry the cache refresh.')
             onClose()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update link')

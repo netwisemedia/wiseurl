@@ -1,16 +1,11 @@
-export async function deleteLinkThenInvalidate(
-  deleteLink: () => Promise<void>,
-  invalidate: () => Promise<void>,
-): Promise<{ deleted: true; cacheSynced: boolean; warning: string | null }> {
-  await deleteLink()
-  try {
-    await invalidate()
-    return { deleted: true, cacheSynced: true, warning: null }
-  } catch (error) {
-    return {
-      deleted: true,
-      cacheSynced: false,
-      warning: error instanceof Error ? error.message : 'Cache synchronization failed',
-    }
-  }
+import type { CacheFence } from './blob-cache'
+
+export async function fenceThenMutate(
+  fence: () => Promise<CacheFence>,
+  mutate: () => Promise<void>,
+  publish?: (fence: CacheFence) => Promise<boolean>,
+): Promise<{ mutated: true; cacheSynced: boolean }> {
+  const acquired = await fence()
+  await mutate()
+  return { mutated: true, cacheSynced: publish ? await publish(acquired) : true }
 }
