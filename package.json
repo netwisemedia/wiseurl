@@ -16,7 +16,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.ts"
   },
   "dependencies": {
     "@netlify/blobs": "^10.5.0",
