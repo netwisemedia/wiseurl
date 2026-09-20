@@ -32,7 +32,7 @@
 
 ## Task 3 — validation and publication
 - [x] Unit tests, typecheck, focused lint, production build; independently review resulting diff.
-- [x] Push branch and create PR, inspect Netlify preview deployment/build including actual native edge bundling.
-- [x] Live preview probes demonstrate nonblocking analytics and preserved response HTML, verify successful analytics persists and cache policy from code/tests; controlled browser flow where possible.
+- [ ] Push branch and create PR, inspect Netlify preview deployment/build including actual native edge bundling.
+- [ ] Live preview probes demonstrate nonblocking analytics and preserved response HTML, verify successful analytics persists and cache policy from code/tests; controlled browser flow where possible.
 - [ ] Merge only after required checks pass, verify deployed production referrer on supplied coupon flows and record repeat HEAD/GET response timings without repeated merchant clicks.
 - [ ] Record actual results and any remaining latency outside WiseURL. Never claim all users reach merchant in <1 second or guaranteed referrer against privacy controls.

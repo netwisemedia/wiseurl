@@ -25,7 +25,7 @@ npm run build -- --webpack
 
 ## Redirect and attribution behavior
 
-A successful `GET /[code]` returns a small `200 text/html` handoff document with a zero-delay meta refresh and an empty body. No message, button, or fallback link is displayed. It sends the `Referrer-Policy: origin` header and matching HTML policy. In ordinary browser navigation, the destination therefore receives the WiseURL origin rather than the original publisher origin. Browser privacy settings, extensions, embedded browsers, destination policy, or non-browser clients may omit the referrer, so this is not a universal guarantee.
+A successful `GET /[code]` returns a small `200 text/html` handoff document with immediate inline navigation, a zero-delay meta-refresh fallback, and an empty body. No message, button, or fallback link is displayed. It sends the `Referrer-Policy: origin` header and matching HTML policy. In ordinary browser navigation, the destination therefore receives the WiseURL origin rather than the original publisher origin. Browser privacy settings, extensions, embedded browsers, destination policy, or non-browser clients may omit the referrer, so this is not a universal guarantee.
 
 WiseURL determines a source in this order:
 
@@ -56,19 +56,14 @@ The CSV endpoint pages through the complete owner-scoped result rather than rely
 
 ## Cache consistency
 
-The database is authoritative. Link create, edit, and delete operations verify ownership and wait for cache synchronization. A cache synchronization failure is reported as a warning after the database mutation succeeds; the UI does not invite the user to repeat an already committed operation.
+Destination configuration is cached for 30 days in the strongly consistent `redirect-config-v1` store. The public redirect path does not serve independent L1 copies. Cache fills use conditional writes and run after the response; visitor-specific HTML and click IDs are never shared in cache.
 
-Redirect data has two bounded cache layers:
+Authenticated edits and deletes acquire a cache fence before changing the database. Ownership checks and an `updated_at` predicate protect the database mutation. Successful edits publish against their own fence; inactive/deleted links leave a tombstone. Failed or ambiguous database operations retain a busy fence and use database reads instead of risking a stale long-lived destination.
 
-- in-process L1: 30 seconds;
-- persistent L2: five minutes.
-
-After successful persistent invalidation, another already-running edge instance can retain an L1 entry for at most 30 seconds. If persistent synchronization fails, a stale redirect can remain for at most five minutes. Lowering these values reduces the stale window but increases database and persistent-cache traffic.
-
-Cache mutation endpoints require an authenticated owner and derive the destination from the database. They do not accept a caller-supplied destination as authority. Deletion verifies ownership, deletes the database row, and only then invalidates both cache layers, preventing a public request from repopulating persistent cache from a row that is about to be deleted.
+Reload previously open dashboard tabs after deploying this change. Older dashboard code and direct database edits bypass the new mutation protocol. See [redirect performance operations](redirect-performance.md) for rollout, retry and rollback limits.
 
 ## Rollback
 
-Application rollback is safe because the new click fields are nullable and the database changes are additive. Restore the previous application version first. Leave the new columns in place to preserve collected attribution data.
+The analytics database migration is backward-compatible because the new click fields are nullable and the database changes are additive. Restore the previous application version first. Leave the new columns in place to preserve collected attribution data.
 
 If the analytics functions must also be removed later, drop the two `wiseurl_analytics_*` functions and their dedicated indexes only after all application instances use the old version. Do not drop the attribution columns unless their stored data is intentionally being discarded. Restoring the former broad authenticated `error_404_logs` read policy is neither required nor recommended; global 404 history has no owner boundary and is intentionally absent from the admin analytics view.
