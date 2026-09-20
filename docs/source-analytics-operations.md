@@ -25,7 +25,7 @@ npm run build -- --webpack
 
 ## Redirect and attribution behavior
 
-A successful `GET /[code]` returns a small `200 text/html` handoff document with a zero-delay meta refresh and a real destination link. It sends the `Referrer-Policy: origin` header and matching HTML policy. In ordinary browser navigation, the destination therefore receives the WiseURL origin rather than the original publisher origin. Browser privacy settings, extensions, embedded browsers, destination policy, or non-browser clients may omit the referrer, so this is not a universal guarantee.
+A successful `GET /[code]` returns a small `200 text/html` handoff document with a zero-delay meta refresh and an empty body. No message, button, or fallback link is displayed. It sends the `Referrer-Policy: origin` header and matching HTML policy. In ordinary browser navigation, the destination therefore receives the WiseURL origin rather than the original publisher origin. Browser privacy settings, extensions, embedded browsers, destination policy, or non-browser clients may omit the referrer, so this is not a universal guarantee.
 
 WiseURL determines a source in this order:
 

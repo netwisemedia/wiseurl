@@ -3,13 +3,14 @@ import test from 'node:test'
 
 import { createHandoffDocument, handoffHeaders } from '../src/lib/redirect-page.ts'
 
-test('creates a script-free zero-delay handoff with a real fallback link', () => {
+test('creates an empty script-free handoff that redirects immediately', () => {
   const html = createHandoffDocument('https://merchant.example/offer?affiliate=abc&coupon=SAVE')
 
   assert.match(html, /<!doctype html>/i)
   assert.match(html, /http-equiv="refresh" content="0;url=https:\/\/merchant\.example\/offer\?affiliate=abc&amp;coupon=SAVE"/)
   assert.match(html, /<meta name="referrer" content="origin">/)
-  assert.match(html, /href="https:\/\/merchant\.example\/offer\?affiliate=abc&amp;coupon=SAVE"/)
+  assert.match(html, /<body>\s*<\/body>/)
+  assert.doesNotMatch(html, /Continue|Opening destination|<a\b/i)
   assert.doesNotMatch(html, /<script/i)
 })
 

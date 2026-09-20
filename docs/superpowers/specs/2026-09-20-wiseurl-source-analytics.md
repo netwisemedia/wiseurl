@@ -6,7 +6,7 @@ WiseURL will attribute each recorded click to the user's affiliate source site, 
 
 ## Redirect contract
 
-- `GET /[code]` resolves the L1 cache, persistent cache, or database exactly as today, then returns `200 text/html` with a zero-delay meta refresh, `Referrer-Policy: origin` in both HTTP and HTML, `X-Robots-Tag: noindex`, `Cache-Control: private, no-store`, and a real fallback anchor.
+- `GET /[code]` resolves the L1 cache, persistent cache, or database exactly as today, then returns `200 text/html` with a zero-delay meta refresh, `Referrer-Policy: origin` in both HTTP and HTML, `X-Robots-Tag: noindex`, `Cache-Control: private, no-store`, and an empty body with no visible message or fallback link (user correction, 2026-09-20).
 - Destination URLs must be valid absolute `http:` or `https:` URLs before they enter the page. All HTML interpolation is escaped. Incoming parameters cannot replace parameters already present in the configured destination.
 - Incoming `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, and `utm_term` are captured inside WiseURL and omitted from the outgoing URL. Destination-authored UTM values remain unchanged. Other incoming values, including common affiliate sub-ID aliases, are forwarded only when the configured destination does not already define the same key. `{click_id}` and `{code}` macros remain supported.
 - The original incoming `Referer` is recorded before the handoff. Click persistence is awaited with a 1.5-second abort bound before returning a successful GET. During a migration-first rollout mismatch, a missing-attribution-column error retries once with the legacy click payload inside the same bounded operation. `HEAD` resolves the link without inserting a click.
