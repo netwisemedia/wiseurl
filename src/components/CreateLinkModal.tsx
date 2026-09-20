@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Group } from '@/lib/types'
 import { X, LinkIcon, Loader2, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { validateHttpUrl } from '@/lib/attribution'
 
 interface Props {
     onClose: () => void
@@ -64,8 +65,7 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
         setError('')
 
         try {
-            // Validate URL
-            new URL(finalUrl || destinationUrl)
+            validateHttpUrl(finalUrl || destinationUrl)
 
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('Not authenticated')
@@ -91,21 +91,27 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
                 throw insertError
             }
 
-            // Warm cache with new link (fire-and-forget)
+            let cacheSynced = true
             if (newLink) {
-                fetch('/api/cache/invalidate', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        code: code.toLowerCase().trim(),
-                        id: newLink.id,
-                        destination_url: finalUrl || destinationUrl.trim()
+                try {
+                    const cacheResponse = await fetch('/api/cache/invalidate', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code.toLowerCase().trim(),
+                            id: newLink.id
+                        })
                     })
-                }).catch(() => { })
+                    const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
+                    cacheSynced = cacheResponse.ok && cacheResult?.cache_synced === true
+                } catch {
+                    cacheSynced = false
+                }
             }
 
             router.refresh()
-            toast.success('Link created successfully!')
+            if (cacheSynced) toast.success('Link created successfully!')
+            else toast.error('Link created, but cache sync failed. It will self-correct within five minutes.')
             onClose()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create link')

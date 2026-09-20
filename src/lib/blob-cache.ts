@@ -13,13 +13,15 @@ interface CachedLink {
     cachedAt: number
 }
 
-// Cache TTL: 1 year (effectively permanent - invalidate on update)
-const CACHE_TTL_MS = 365 * 24 * 60 * 60 * 1000
+export type ResolvedPersistentLink = CachedLink & { expiresAt: number }
+
+// Bounds stale redirects if an authenticated mutation cannot synchronize the cache.
+const CACHE_TTL_MS = 5 * 60 * 1000
 
 /**
  * Get a link from persistent cache
  */
-export async function getCachedLinkPersistent(code: string): Promise<CachedLink | null> {
+export async function getCachedLinkPersistent(code: string): Promise<ResolvedPersistentLink | null> {
     try {
         const store = getStore('links')
         const cached = await store.get(code, { type: 'json' }) as CachedLink | null
@@ -34,7 +36,7 @@ export async function getCachedLinkPersistent(code: string): Promise<CachedLink 
             return null
         }
 
-        return cached
+        return { ...cached, expiresAt: cached.cachedAt + CACHE_TTL_MS }
     } catch {
         // Fallback gracefully if Blobs not available (local dev)
         return null
@@ -44,7 +46,7 @@ export async function getCachedLinkPersistent(code: string): Promise<CachedLink 
 /**
  * Store a link in persistent cache
  */
-export async function setCachedLinkPersistent(code: string, id: string, destinationUrl: string): Promise<void> {
+export async function setCachedLinkPersistent(code: string, id: string, destinationUrl: string): Promise<boolean> {
     try {
         const store = getStore('links')
         await store.setJSON(code, {
@@ -52,8 +54,9 @@ export async function setCachedLinkPersistent(code: string, id: string, destinat
             destination_url: destinationUrl,
             cachedAt: Date.now()
         } satisfies CachedLink)
+        return true
     } catch {
-        // Ignore errors - cache is optional optimization
+        return false
     }
 }
 

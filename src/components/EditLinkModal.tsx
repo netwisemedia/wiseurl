@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Link as LinkType, Group } from '@/lib/types'
 import { X, LinkIcon, Loader2, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { validateHttpUrl } from '@/lib/attribution'
 
 interface Props {
     link: LinkType
@@ -29,7 +30,7 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
         setError('')
 
         try {
-            new URL(destinationUrl)
+            validateHttpUrl(destinationUrl)
 
             const { error: updateError } = await supabase
                 .from('links')
@@ -43,19 +44,25 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
 
             if (updateError) throw updateError
 
-            // Update cache with new destination URL (invalidate + warm)
-            fetch('/api/cache/invalidate', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    code: link.code,
-                    id: link.id,
-                    destination_url: destinationUrl.trim()
+            let cacheSynced = false
+            try {
+                const cacheResponse = await fetch('/api/cache/invalidate', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: link.code,
+                        id: link.id
+                    })
                 })
-            }).catch(() => { }) // fire-and-forget
+                const cacheResult = await cacheResponse.json().catch(() => null) as { cache_synced?: boolean } | null
+                cacheSynced = cacheResponse.ok && cacheResult?.cache_synced === true
+            } catch {
+                cacheSynced = false
+            }
 
             router.refresh()
-            toast.success('Link updated!')
+            if (cacheSynced) toast.success('Link updated!')
+            else toast.error('Link updated, but cache sync failed. It will self-correct within five minutes.')
             onClose()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update link')

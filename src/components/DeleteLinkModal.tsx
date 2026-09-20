@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Link as LinkType } from '@/lib/types'
 import { AlertTriangle, Loader2, Trash2 } from 'lucide-react'
@@ -16,29 +15,28 @@ export default function DeleteLinkModal({ link, onClose }: Props) {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState('')
     const router = useRouter()
-    const supabase = createClient()
-
     const handleDelete = async () => {
         setIsLoading(true)
         setError('')
 
         try {
-            const { error: deleteError } = await supabase
-                .from('links')
-                .delete()
-                .eq('id', link.id)
-
-            if (deleteError) throw deleteError
-
-            // Invalidate cache for this link
-            fetch('/api/cache/invalidate', {
-                method: 'POST',
+            const response = await fetch('/api/cache/invalidate', {
+                method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: link.code })
-            }).catch(() => { }) // fire-and-forget
+                body: JSON.stringify({ id: link.id, code: link.code })
+            })
+            if (!response.ok) {
+                const body = await response.json().catch(() => null) as { error?: string } | null
+                throw new Error(body?.error || 'Failed to delete link')
+            }
+            const result = await response.json() as { cache_synced?: boolean }
 
             router.refresh()
-            toast.success('Link deleted!')
+            if (result.cache_synced === false) {
+                toast.error('Link deleted, but cache sync failed. A stale redirect may remain for up to five minutes.')
+            } else {
+                toast.success('Link deleted!')
+            }
             onClose()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to delete link')

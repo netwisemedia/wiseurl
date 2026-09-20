@@ -1,86 +1,147 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { invalidateCachedLink, invalidateAllLinks, getCacheStats, setCachedLink } from '@/lib/link-cache'
-import { invalidateCachedLinkPersistent, invalidateAllLinksPersistent, setCachedLinkPersistent } from '@/lib/blob-cache'
+
+import {
+  getCacheStats,
+  invalidateCachedLink,
+  setCachedLink,
+} from '@/lib/link-cache'
+import {
+  invalidateCachedLinkPersistent,
+  setCachedLinkPersistent,
+} from '@/lib/blob-cache'
+import { createClient } from '@/lib/supabase/server'
+import { deleteLinkThenInvalidate } from '@/lib/cache-mutation'
 
 export const runtime = 'edge'
 
-/**
- * API to invalidate link cache (both L1 in-memory and L2 persistent)
- * 
- * POST /api/cache/invalidate
- * Body: { code: "linkcode" } - invalidate specific link
- * Body: { all: true } - invalidate all links
- * 
- * GET /api/cache/invalidate - get cache stats
- */
+interface CacheBody {
+  id?: unknown
+  code?: unknown
+}
+
+async function ownedLink(body: CacheBody) {
+  if (typeof body.id !== 'string' || typeof body.code !== 'string') {
+    return { response: NextResponse.json({ error: 'Provide { id, code }' }, { status: 400 }) }
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+
+  const { data: link, error } = await supabase
+    .from('links')
+    .select('id, code, destination_url, is_active')
+    .eq('id', body.id)
+    .eq('code', body.code)
+    .eq('user_id', user.id)
+    .single()
+
+  if (error || !link) {
+    return { response: NextResponse.json({ error: 'Link not found' }, { status: 404 }) }
+  }
+
+  return { link, supabase, user }
+}
+
+async function invalidateEverywhere(code: string): Promise<void> {
+  invalidateCachedLink(code)
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await invalidateCachedLinkPersistent(code)) return
+  }
+
+  throw new Error('Persistent cache invalidation failed after three attempts')
+}
+
+async function parseBody(request: NextRequest): Promise<CacheBody | null> {
+  try {
+    return await request.json() as CacheBody
+  } catch {
+    return null
+  }
+}
 
 export async function POST(request: NextRequest) {
-    try {
-        const body = await request.json()
+  const body = await parseBody(request)
+  if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
 
-        if (body.all === true) {
-            invalidateAllLinks()
-            await invalidateAllLinksPersistent()
-            return NextResponse.json({ success: true, message: 'All cache cleared (L1 + L2)' })
-        }
+  const result = await ownedLink(body)
+  if ('response' in result) return result.response
 
-        if (body.code && typeof body.code === 'string') {
-            const deletedL1 = invalidateCachedLink(body.code)
-            const deletedL2 = await invalidateCachedLinkPersistent(body.code)
-            return NextResponse.json({
-                success: true,
-                message: `Cache cleared for /${body.code}`,
-                l1_cleared: deletedL1,
-                l2_cleared: deletedL2
-            })
-        }
+  const deletedL1 = invalidateCachedLink(result.link.code)
+  const deletedL2 = await invalidateCachedLinkPersistent(result.link.code)
+  return NextResponse.json({
+    success: true,
+    cache_synced: deletedL2,
+    l1_cleared: deletedL1,
+    l2_cleared: deletedL2,
+    warning: deletedL2 ? null : 'Persistent cache sync failed; stale entries expire within five minutes.',
+  })
+}
 
-        return NextResponse.json({ error: 'Provide { code: "xxx" } or { all: true }' }, { status: 400 })
-    } catch {
-        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-    }
+export async function PUT(request: NextRequest) {
+  const body = await parseBody(request)
+  if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+
+  const result = await ownedLink(body)
+  if ('response' in result) return result.response
+
+  invalidateCachedLink(result.link.code)
+  const invalidatedPersistent = await invalidateCachedLinkPersistent(result.link.code)
+
+  let cacheSynced = invalidatedPersistent
+  if (result.link.is_active) {
+    setCachedLink(result.link.code, result.link.id, result.link.destination_url)
+    cacheSynced = await setCachedLinkPersistent(result.link.code, result.link.id, result.link.destination_url)
+  }
+
+  return NextResponse.json({
+    success: true,
+    cache_synced: cacheSynced,
+    warmed: result.link.is_active && cacheSynced,
+    warning: cacheSynced ? null : 'Persistent cache sync failed; stale entries expire within five minutes.',
+  })
 }
 
 export async function GET() {
-    const stats = getCacheStats()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  return NextResponse.json({ l1_size: getCacheStats().size })
+}
+
+export async function DELETE(request: NextRequest) {
+  const body = await parseBody(request)
+  if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+
+  const result = await ownedLink(body)
+  if ('response' in result) return result.response
+
+  try {
+    const deletion = await deleteLinkThenInvalidate(
+      async () => {
+        const { error } = await result.supabase
+          .from('links')
+          .delete()
+          .eq('id', result.link.id)
+          .eq('user_id', result.user.id)
+        if (error) throw new Error(error.message)
+      },
+      async () => invalidateEverywhere(result.link.code),
+    )
     return NextResponse.json({
-        l1_memory: stats,
-        note: 'L2 persistent cache (Netlify Blobs) does not have stats endpoint'
+      success: true,
+      deleted: deletion.deleted,
+      cache_synced: deletion.cacheSynced,
+      warning: deletion.cacheSynced
+        ? null
+        : 'Link deleted, but persistent cache sync failed; stale entries expire within five minutes.',
     })
+  } catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Link deletion failed',
+    }, { status: 500 })
+  }
+
 }
-
-/**
- * Update cache with new link data (invalidate + warm in one call)
- * 
- * PUT /api/cache/invalidate
- * Body: { code: "xxx", id: "uuid", destination_url: "https://..." }
- */
-export async function PUT(request: NextRequest) {
-    try {
-        const body = await request.json()
-
-        if (!body.code || !body.id || !body.destination_url) {
-            return NextResponse.json(
-                { error: 'Provide { code, id, destination_url }' },
-                { status: 400 }
-            )
-        }
-
-        // Invalidate old entry
-        invalidateCachedLink(body.code)
-        await invalidateCachedLinkPersistent(body.code)
-
-        // Set new entry
-        setCachedLink(body.code, body.id, body.destination_url)
-        await setCachedLinkPersistent(body.code, body.id, body.destination_url)
-
-        return NextResponse.json({
-            success: true,
-            message: `Cache updated for /${body.code}`,
-            destination_url: body.destination_url
-        })
-    } catch {
-        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-    }
-}
-
