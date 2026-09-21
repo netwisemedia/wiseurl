@@ -28,3 +28,4 @@ run_sql_test() {
 
 run_sql_test "source_analytics" "tests/sql/source-analytics.sql"
 run_sql_test "overview" "tests/sql/overview.sql"
+run_sql_test "missing_links" "tests/sql/missing-links.sql"
