@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -22,11 +22,13 @@ import {
 } from 'lucide-react'
 
 import CreateLinkModal from '@/components/CreateLinkModal'
+import CompanyFinder from '@/components/CompanyFinder'
 import DeleteLinkModal from '@/components/DeleteLinkModal'
 import EditLinkModal from '@/components/EditLinkModal'
 import GroupManager from '@/components/GroupManager'
 import SourceAnalytics from '@/components/SourceAnalytics'
 import Overview from '@/components/overview/Overview'
+import MissingLinkOpportunities from '@/components/MissingLinkOpportunities'
 import SourceTaggedUrl from '@/components/SourceTaggedUrl'
 import { createClient } from '@/lib/supabase/client'
 import type { Group, Link as LinkType } from '@/lib/types'
@@ -37,7 +39,7 @@ interface Props {
   userEmail?: string
 }
 
-type Tab = 'overview' | 'links' | 'groups' | 'analytics'
+type Tab = 'overview' | 'links' | 'groups' | 'analytics' | 'opportunities'
 
 const GROUP_COLORS: Record<string, string> = {
   red: 'bg-red-500', blue: 'bg-blue-500', green: 'bg-green-500', yellow: 'bg-yellow-500',
@@ -57,15 +59,19 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
   const groups = initialGroups
   const searchParams = useSearchParams()
   const requestedView = searchParams.get('view')
-  const activeTab: Tab = requestedView === 'links' || requestedView === 'groups' || requestedView === 'analytics' ? requestedView : 'overview'
+  const activeTab: Tab = requestedView === 'links' || requestedView === 'groups' || requestedView === 'analytics' || requestedView === 'opportunities' ? requestedView : 'overview'
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createCode, setCreateCode] = useState('')
+  const [showCompanyFinder, setShowCompanyFinder] = useState(false)
   const [editingLink, setEditingLink] = useState<LinkType | null>(null)
   const [deletingLink, setDeletingLink] = useState<LinkType | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const companyFinderButtonRef = useRef<HTMLButtonElement>(null)
+  const editReturnFocusRef = useRef<HTMLElement | null>(null)
   const router = useRouter()
   const supabase = createClient()
   const setActiveTab = (tab: Tab) => {
@@ -76,6 +82,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
   const navigation = [
     { id: 'overview' as const, label: 'Overview', icon: LayoutDashboard },
     { id: 'links' as const, label: 'Links', icon: LinkIcon },
+    { id: 'opportunities' as const, label: 'Affiliate opportunities', icon: BarChart3 },
     { id: 'analytics' as const, label: 'Source reports', icon: BarChart3 },
     { id: 'groups' as const, label: 'Groups', icon: FolderOpen },
   ]
@@ -118,6 +125,31 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
     router.refresh()
   }
 
+  const closeCompanyFinder = () => {
+    setShowCompanyFinder(false)
+    requestAnimationFrame(() => companyFinderButtonRef.current?.focus())
+  }
+
+  const openLinkEditor = (link: LinkType) => {
+    editReturnFocusRef.current = document.activeElement as HTMLElement | null
+    setEditingLink(link)
+  }
+
+  const closeLinkEditor = () => {
+    setEditingLink(null)
+    requestAnimationFrame(() => {
+      const target = editReturnFocusRef.current
+      if (target?.isConnected) target.focus()
+      else companyFinderButtonRef.current?.focus()
+    })
+  }
+
+  const editFromCompanyFinder = (link: LinkType) => {
+    editReturnFocusRef.current = companyFinderButtonRef.current
+    setShowCompanyFinder(false)
+    setEditingLink(link)
+  }
+
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
@@ -127,10 +159,11 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
         <div className="sidebar-bottom"><div className="workspace-note"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500 mr-2" />{links.filter(link => link.is_active).length} active links<p>Your links. Your traffic.</p></div><Link href="/settings" className="sidebar-settings"><Settings size={17} />Settings</Link></div>
       </aside>
       <div className="admin-content">
-        <header className="admin-topbar"><div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]"><span className="hidden sm:inline">Workspace</span><ChevronRight size={13} className="hidden sm:block" /><span className="font-medium text-[var(--foreground)]">{navigation.find(item => item.id === activeTab)?.label}</span></div><div className="flex items-center gap-3"><button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}><Plus size={15} />New link</button><div className="relative"><button type="button" aria-label="Account menu" aria-expanded={showUserMenu} onClick={() => setShowUserMenu(open => !open)} className="account-avatar">{userEmail?.[0]?.toUpperCase() || <User size={16} />}</button>{showUserMenu && <div className="absolute right-0 top-12 w-60 card p-2 shadow-xl z-50">{userEmail && <p className="px-3 py-2 text-sm truncate text-[var(--muted-foreground)]">{userEmail}</p>}<Link href="/settings" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--muted)]"><Settings size={16} />Settings</Link><button type="button" onClick={logout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-red-500 hover:bg-red-500/10"><LogOut size={16} />Log out</button></div>}</div></div></header>
+        <header className="admin-topbar"><div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]"><span className="hidden sm:inline">Workspace</span><ChevronRight size={13} className="hidden sm:block" /><span className="font-medium text-[var(--foreground)]">{navigation.find(item => item.id === activeTab)?.label}</span></div><div className="flex items-center gap-2 sm:gap-3"><button ref={companyFinderButtonRef} type="button" className="btn btn-secondary btn-sm topbar-company-finder" aria-haspopup="dialog" aria-expanded={showCompanyFinder} onClick={() => setShowCompanyFinder(true)}><Search size={15} /><span>Find company</span></button><button type="button" className="btn btn-primary btn-sm" aria-label="New link" onClick={() => setShowCreateModal(true)}><Plus size={15} /><span className="topbar-new-link-label">New link</span></button><div className="relative"><button type="button" aria-label="Account menu" aria-expanded={showUserMenu} onClick={() => setShowUserMenu(open => !open)} className="account-avatar">{userEmail?.[0]?.toUpperCase() || <User size={16} />}</button>{showUserMenu && <div className="absolute right-0 top-12 w-60 card p-2 shadow-xl z-50">{userEmail && <p className="px-3 py-2 text-sm truncate text-[var(--muted-foreground)]">{userEmail}</p>}<Link href="/settings" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--muted)]"><Settings size={16} />Settings</Link><button type="button" onClick={logout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-red-500 hover:bg-red-500/10"><LogOut size={16} />Log out</button></div>}</div></div></header>
         <main className="admin-main">
         {activeTab === 'overview' && <Overview groups={groups} revision={links.map(link => `${link.id}:${link.updated_at}`).join(',')} onCreate={() => setShowCreateModal(true)} />}
-        {activeTab !== 'overview' && <div className="mb-6"><p className="eyebrow">YOUR AFFILIATE WORKSPACE</p><h1 className="page-title">{activeTab === 'links' ? 'Your links' : activeTab === 'groups' ? 'Link groups' : 'Source reports'}</h1><p className="page-description">{activeTab === 'links' ? 'Manage your destinations, copy publishing URLs and explore each link.' : activeTab === 'groups' ? 'Organize links by company, campaign or channel.' : 'Explore attribution, destinations and individual click events.'}</p></div>}
+        {activeTab === 'opportunities' && <MissingLinkOpportunities revision={links.map(link => `${link.id}:${link.updated_at}`).join(',')} onCreate={code => { setCreateCode(code); setShowCreateModal(true) }} onEdit={id => { const link = links.find(link => link.id === id); if (link) openLinkEditor(link) }} />}
+        {activeTab !== 'overview' && activeTab !== 'opportunities' && <div className="mb-6"><p className="eyebrow">YOUR AFFILIATE WORKSPACE</p><h1 className="page-title">{activeTab === 'links' ? 'Your links' : activeTab === 'groups' ? 'Link groups' : 'Source reports'}</h1><p className="page-description">{activeTab === 'links' ? 'Manage your destinations, copy publishing URLs and explore each link.' : activeTab === 'groups' ? 'Organize links by company, campaign or channel.' : 'Explore attribution, destinations and individual click events.'}</p></div>}
 
         {activeTab === 'links' && (
           <div className="space-y-4">
@@ -176,7 +209,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
                           <td>
                             <div className="flex gap-1">
                               <Link href={`/links/${link.id}`} className="p-2 rounded hover:bg-[var(--muted)] text-[var(--primary)]" title="View analytics"><BarChart3 className="w-4 h-4" /></Link>
-                              <button type="button" onClick={() => setEditingLink(link)} className="p-2 rounded hover:bg-[var(--muted)]" title="Edit" aria-label={`Edit /${link.code}`}><Pencil className="w-4 h-4" /></button>
+                              <button type="button" onClick={() => openLinkEditor(link)} className="p-2 rounded hover:bg-[var(--muted)]" title="Edit" aria-label={`Edit /${link.code}`}><Pencil className="w-4 h-4" /></button>
                               <button type="button" onClick={() => setDeletingLink(link)} className="p-2 rounded hover:bg-red-500/10 text-red-500" title="Delete" aria-label={`Delete /${link.code}`}><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
@@ -204,8 +237,9 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
       </main>
       </div>
 
-      {showCreateModal && <CreateLinkModal groups={groups} onClose={() => setShowCreateModal(false)} />}
-      {editingLink && <EditLinkModal link={editingLink} groups={groups} onClose={() => setEditingLink(null)} />}
+      {showCreateModal && <CreateLinkModal groups={groups} initialCode={createCode} onClose={() => { setShowCreateModal(false); setCreateCode('') }} />}
+      {showCompanyFinder && <CompanyFinder links={links} onClose={closeCompanyFinder} onEdit={editFromCompanyFinder} />}
+      {editingLink && <EditLinkModal link={editingLink} groups={groups} onClose={closeLinkEditor} />}
       {deletingLink && <DeleteLinkModal link={deletingLink} onClose={() => setDeletingLink(null)} />}
     </div>
   )

@@ -69,10 +69,10 @@ npm install
 
 1. Create a free project at [supabase.com](https://supabase.com)
 2. Go to the SQL Editor and run `supabase/schema.sql`
-3. Run `supabase/migrations/0001_source_analytics.sql`, then `supabase/migrations/0002_overview.sql` to install source analytics and the portfolio overview
+3. Run `supabase/migrations/0001_source_analytics.sql`, `supabase/migrations/0002_overview.sql`, then `supabase/migrations/0003_missing_links.sql` to install source analytics and the portfolio overview
 4. Get your **Project URL** and **anon Key** from Project Settings > API
 
-For an existing installation, run any unapplied migrations in order: `0001_source_analytics.sql`, then `0002_overview.sql`. Apply the migration before deploying application code. The migration is additive and safe to rerun. See [Source analytics operations](docs/source-analytics-operations.md) for rollout, attribution, cache, and rollback details.
+For an existing installation, run any unapplied migrations in order: `0001_source_analytics.sql`, `0002_overview.sql`, then `0003_missing_links.sql`. Apply the migration before deploying application code. The migration is additive and safe to rerun. See [Source analytics operations](docs/source-analytics-operations.md) for rollout, attribution, cache, and rollback details.
 
 ### 3. Configure Environment
 
@@ -119,7 +119,7 @@ The easiest way to deploy WiseURL is with Netlify.
 1. Fork this repository.
 2. Create a new site on Netlify and select your forked repo.
 3. Add your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the Netlify Build settings.
-4. Apply `supabase/migrations/0001_source_analytics.sql`, then `supabase/migrations/0002_overview.sql` to the production database.
+4. Apply `supabase/migrations/0001_source_analytics.sql`, `supabase/migrations/0002_overview.sql`, then `supabase/migrations/0003_missing_links.sql` to the production database.
 5. Deploy the application only after the migration succeeds.
 
 ## 🤝 Contributing
@@ -139,3 +139,7 @@ WiseURL does not store IP addresses. It records source labels, the incoming refe
 ## License
 
 MIT
+
+### Affiliate opportunities
+
+The dashboard reports requests for missing/inactive shortlinks from administrator-verified source sites. These are demand signals, not confirmed coupon copies, redemptions or commissions. See [Opportunity reporting operations](docs/opportunities-operations.md) for source ownership setup. Use **Find company** in the dashboard header to search all owned shortlinks and edit a destination directly.

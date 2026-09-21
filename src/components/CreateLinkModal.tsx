@@ -11,10 +11,11 @@ import { validateHttpUrl } from '@/lib/attribution'
 interface Props {
     onClose: () => void
     groups: Group[]
+    initialCode?: string
 }
 
-export default function CreateLinkModal({ onClose, groups }: Props) {
-    const [code, setCode] = useState('')
+export default function CreateLinkModal({ onClose, groups, initialCode = '' }: Props) {
+    const [code, setCode] = useState(initialCode)
     const [destinationUrl, setDestinationUrl] = useState('')
     const [title, setTitle] = useState('')
     const [tags, setTags] = useState('')
@@ -192,6 +193,8 @@ export default function CreateLinkModal({ onClose, groups }: Props) {
                         </label>
                         <input
                             type="url"
+                            autoFocus={Boolean(initialCode)}
+                            aria-label="Destination URL"
                             value={destinationUrl}
                             onChange={(e) => setDestinationUrl(e.target.value)}
                             className="input"

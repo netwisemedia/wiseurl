@@ -102,6 +102,8 @@ export default function EditLinkModal({ link, groups, onClose }: Props) {
                         <label className="block text-sm font-medium mb-2">Destination URL</label>
                         <input
                             type="url"
+                            autoFocus
+                            aria-label="Destination URL"
                             value={destinationUrl}
                             onChange={(e) => setDestinationUrl(e.target.value)}
                             className="input"
