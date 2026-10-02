@@ -15,6 +15,7 @@ import {
   LogOut,
   Pencil,
   Plus,
+  BadgeCheck,
   Search,
   Settings,
   Trash2,
@@ -30,16 +31,19 @@ import SourceAnalytics from '@/components/SourceAnalytics'
 import Overview from '@/components/overview/Overview'
 import MissingLinkOpportunities from '@/components/MissingLinkOpportunities'
 import SourceTaggedUrl from '@/components/SourceTaggedUrl'
+import Programs from '@/components/Programs'
 import { createClient } from '@/lib/supabase/client'
-import type { Group, Link as LinkType } from '@/lib/types'
+import type { Group, Link as LinkType, Program } from '@/lib/types'
 
 interface Props {
   initialLinks: LinkType[]
   initialGroups: Group[]
+  initialPrograms: Program[]
+  userId: string
   userEmail?: string
 }
 
-type Tab = 'overview' | 'links' | 'groups' | 'analytics' | 'opportunities'
+type Tab = 'overview' | 'links' | 'programs' | 'groups' | 'analytics' | 'opportunities'
 
 const GROUP_COLORS: Record<string, string> = {
   red: 'bg-red-500', blue: 'bg-blue-500', green: 'bg-green-500', yellow: 'bg-yellow-500',
@@ -54,12 +58,12 @@ function destinationHost(value: string): string {
   }
 }
 
-export default function DashboardClient({ initialLinks, initialGroups, userEmail }: Props) {
+export default function DashboardClient({ initialLinks, initialGroups, initialPrograms, userId, userEmail }: Props) {
   const links = initialLinks
   const groups = initialGroups
   const searchParams = useSearchParams()
   const requestedView = searchParams.get('view')
-  const activeTab: Tab = requestedView === 'links' || requestedView === 'groups' || requestedView === 'analytics' || requestedView === 'opportunities' ? requestedView : 'overview'
+  const activeTab: Tab = requestedView === 'links' || requestedView === 'programs' || requestedView === 'groups' || requestedView === 'analytics' || requestedView === 'opportunities' ? requestedView : 'overview'
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -82,6 +86,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
   const navigation = [
     { id: 'overview' as const, label: 'Overview', icon: LayoutDashboard },
     { id: 'links' as const, label: 'Links', icon: LinkIcon },
+    { id: 'programs' as const, label: 'Programs', icon: BadgeCheck },
     { id: 'opportunities' as const, label: 'Affiliate opportunities', icon: BarChart3 },
     { id: 'analytics' as const, label: 'Source reports', icon: BarChart3 },
     { id: 'groups' as const, label: 'Groups', icon: FolderOpen },
@@ -163,7 +168,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
         <main className="admin-main">
         {activeTab === 'overview' && <Overview groups={groups} revision={links.map(link => `${link.id}:${link.updated_at}`).join(',')} onCreate={() => setShowCreateModal(true)} />}
         {activeTab === 'opportunities' && <MissingLinkOpportunities revision={links.map(link => `${link.id}:${link.updated_at}`).join(',')} onCreate={code => { setCreateCode(code); setShowCreateModal(true) }} onEdit={id => { const link = links.find(link => link.id === id); if (link) openLinkEditor(link) }} />}
-        {activeTab !== 'overview' && activeTab !== 'opportunities' && <div className="mb-6"><p className="eyebrow">YOUR AFFILIATE WORKSPACE</p><h1 className="page-title">{activeTab === 'links' ? 'Your links' : activeTab === 'groups' ? 'Link groups' : 'Source reports'}</h1><p className="page-description">{activeTab === 'links' ? 'Manage your destinations, copy publishing URLs and explore each link.' : activeTab === 'groups' ? 'Organize links by company, campaign or channel.' : 'Explore attribution, destinations and individual click events.'}</p></div>}
+        {activeTab !== 'overview' && activeTab !== 'opportunities' && <div className="mb-6"><p className="eyebrow">YOUR AFFILIATE WORKSPACE</p><h1 className="page-title">{activeTab === 'links' ? 'Your links' : activeTab === 'programs' ? 'Affiliate programs' : activeTab === 'groups' ? 'Link groups' : 'Source reports'}</h1><p className="page-description">{activeTab === 'links' ? 'Manage your destinations, copy publishing URLs and explore each link.' : activeTab === 'programs' ? 'Record the affiliate network and your confirmed access for each link.' : activeTab === 'groups' ? 'Organize links by company, campaign or channel.' : 'Explore attribution, destinations and individual click events.'}</p></div>}
 
         {activeTab === 'links' && (
           <div className="space-y-4">
@@ -233,6 +238,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
         )}
 
         {activeTab === 'groups' && <GroupManager groups={groups} />}
+        {activeTab === 'programs' && <Programs links={links} initialPrograms={initialPrograms} userId={userId} />}
         {activeTab === 'analytics' && <SourceAnalytics links={links} groups={groups} />}
       </main>
       </div>

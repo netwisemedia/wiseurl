@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardClient from './DashboardClient'
-import type { Group, Link } from '@/lib/types'
+import type { Group, Link, Program } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,9 +46,25 @@ export default async function DashboardPage() {
         if (!data || data.length < METADATA_PAGE_SIZE) break
     }
 
+    const programs: Program[] = []
+    for (let offset = 0; ; offset += METADATA_PAGE_SIZE) {
+        const { data, error } = await supabase
+            .from('programs')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('code', { ascending: true })
+            .range(offset, offset + METADATA_PAGE_SIZE - 1)
+
+        if (error) throw new Error(`Could not load dashboard programs: ${error.message}`)
+        programs.push(...((data || []) as Program[]))
+        if (!data || data.length < METADATA_PAGE_SIZE) break
+    }
+
     return <DashboardClient
         initialLinks={links}
         initialGroups={groups}
+        initialPrograms={programs}
+        userId={user.id}
         userEmail={user.email}
     />
 }

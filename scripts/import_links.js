@@ -1,3 +1,5 @@
+// Legacy Node script uses CommonJS.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ahwxzlhzbbzkvorjcyym.supabase.co';
