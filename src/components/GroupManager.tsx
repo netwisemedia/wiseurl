@@ -64,9 +64,9 @@ export default function GroupManager({ groups }: Props) {
             setIsCreating(false)
             router.refresh()
             toast.success('Group created')
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error(err)
-            toast.error(err instanceof Error ? err.message : 'Failed to create group')
+            toast.error(err.message || 'Failed to create group')
         } finally {
             setIsLoading(false)
         }
@@ -92,7 +92,7 @@ export default function GroupManager({ groups }: Props) {
             setEditingGroupId(null)
             router.refresh()
             toast.success('Group updated')
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error(err)
             toast.error('Failed to update group')
         } finally {
@@ -114,7 +114,7 @@ export default function GroupManager({ groups }: Props) {
 
             router.refresh()
             toast.success('Group deleted')
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error(err)
             toast.error('Failed to delete group')
         }
