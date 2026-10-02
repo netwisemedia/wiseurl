@@ -19,21 +19,6 @@ export interface Group {
     created_at: string
 }
 
-export type ProgramAccess = 'approved' | 'pending' | 'rejected' | 'not_applied'
-
-export interface Program {
-    user_id: string
-    code: string
-    network: string | null
-    program_url: string | null
-    signup_url: string | null
-    commission: string | null
-    cookie_days: number | null
-    access: ProgramAccess | null
-    notes: string | null
-    updated_at: string
-}
-
 export interface Click {
     id: string
     link_id: string
@@ -106,11 +91,6 @@ export interface DailyStats {
 export interface Database {
     public: {
         Tables: {
-            programs: {
-                Row: Program
-                Insert: Omit<Program, 'updated_at'>
-                Update: Partial<Omit<Program, 'user_id' | 'code'>>
-            }
             links: {
                 Row: Link
                 Insert: Omit<Link, 'id' | 'created_at' | 'updated_at'>
