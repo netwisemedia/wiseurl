@@ -143,3 +143,16 @@ MIT
 ### Affiliate opportunities
 
 The dashboard reports requests for missing/inactive shortlinks from administrator-verified source sites. These are demand signals, not confirmed coupon copies, redemptions or commissions. See [Opportunity reporting operations](docs/opportunities-operations.md) for source ownership setup. Use **Find company** in the dashboard header to search all owned shortlinks and edit a destination directly.
+
+### Affiliate programs for SwiftPilot
+
+`public.programs` records the affiliate network, program and signup URLs, commission, cookie duration, owner-confirmed access, and private notes for an **exact** WiseURL link code. A missing row or `NULL` access means unknown; it does not mean “not applied.” The dashboard’s **Programs** tab lists owned links and creates a program row on the first save. The read-only `public.swiftpilot_programs_v1` view includes link-only and program-only rows, but excludes private notes.
+
+Operator steps, in order:
+
+1. In the Supabase SQL editor, apply `supabase/migrations/0002_programs.sql` after the existing dashboard migrations and before deploying this UI. Do not run it through a live application request.
+2. Confirm the WiseURL owner UUID in `auth.users`. In the SQL editor, insert that UUID into `public.swiftpilot_reader_scope` using the commented statement at the end of the migration. The view returns no rows until this is done. Verify the projected rows belong to that owner.
+3. In the Supabase dashboard, create a dedicated PostgreSQL LOGIN role for SwiftPilot with a strong password and no elevated privileges or other memberships. In the SQL editor, run `GRANT swiftpilot_reader TO <login_role>;` with the actual role name. Keep the password out of this repository. Check effective PUBLIC privileges and verify that the login can read the view but cannot read notes or write to any WiseURL table before enabling it.
+4. Put that login’s TLS PostgreSQL connection string on the SwiftPilot server as `WISEURL_RO_DATABASE_URL` and run SwiftPilot’s periodic batch sync. Never put it in a browser variable or Netlify client configuration.
+
+The migration’s comment block documents a non-destructive rollback. Applying SQL, creating the login, setting the owner scope, and configuring the server are operator actions; this repository does not perform them automatically.
