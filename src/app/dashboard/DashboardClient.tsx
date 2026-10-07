@@ -172,7 +172,7 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
                 <input value={searchQuery} onChange={event => changeSearch(event.target.value)} className="input pl-9!" aria-label="Search links" placeholder="Search links, titles, or destinations" />
               </label>
-              <select aria-label="Filter links by group" value={selectedGroupId || ''} onChange={event => changeGroup(event.target.value || null)} className="input md:w-56">
+              <select aria-label="Filter links by group" value={selectedGroupId || ''} onChange={event => changeGroup(event.target.value || null)} className="input md:w-56! md:shrink-0">
                 <option value="">All groups</option>
                 {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
               </select>
