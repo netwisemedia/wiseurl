@@ -22,7 +22,8 @@ $$;
 \ir ../../supabase/migrations/0003_missing_links.sql
 \ir ../../supabase/migrations/0004_missing_links_no_referrer.sql
 \ir ../../supabase/migrations/0005_missing_links_explicit_source.sql
-\ir ../../supabase/migrations/0005_missing_links_explicit_source.sql
+\ir ../../supabase/migrations/0006_reporting_source_tag.sql
+\ir ../../supabase/migrations/0006_reporting_source_tag.sql
 
 GRANT USAGE ON SCHEMA public, auth TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION auth.uid(), auth.role() TO authenticated, anon;
@@ -36,6 +37,10 @@ INSERT INTO auth.users (id) VALUES
 INSERT INTO public.wiseurl_reporting_sources (hostname, user_id) VALUES
   ('couponswift.com', '10000000-0000-4000-8000-000000000001'),
   ('other-publisher.example', '20000000-0000-4000-8000-000000000002');
+
+-- Re-apply 0006 now that the source row exists: its idempotent UPDATE sets the couponswift.com alias.
+\ir ../../supabase/migrations/0006_reporting_source_tag.sql
+UPDATE public.wiseurl_reporting_sources SET source_tag = 'xx' WHERE hostname = 'other-publisher.example';
 
 INSERT INTO public.links (id, code, destination_url, title, user_id, is_active) VALUES
   ('11111111-1111-4111-8111-111111111111', 'now-resolved', 'https://merchant.example/resolved', 'Resolved', '10000000-0000-4000-8000-000000000001', true),
@@ -215,4 +220,46 @@ DO $$ DECLARE report jsonb; BEGIN
   report := public.wiseurl_missing_links_report('2024-05-02', '2024-05-02');
   ASSERT (report #>> '{summary,requests}')::integer = 1, 'owner two must see only its own tagged request';
   ASSERT report -> 'rows' @> '[{"code":"t-other-owner-tag","leading_source":"other-publisher.example"}]'::jsonb, 'owner two tag row missing';
+END $$;
+
+-- Source tag alias (0006), dated 2024-05-03.
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub', '', false);
+DO $$ BEGIN
+  ASSERT (SELECT source_tag FROM public.wiseurl_reporting_sources WHERE hostname = 'couponswift.com') = 'cs', 'couponswift.com alias not set by the migration';
+  BEGIN
+    UPDATE public.wiseurl_reporting_sources SET source_tag = 'CS' WHERE hostname = 'other-publisher.example';
+    RAISE EXCEPTION 'upper-case source tag accepted';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN
+    UPDATE public.wiseurl_reporting_sources SET source_tag = 'cs' WHERE hostname = 'other-publisher.example';
+    RAISE EXCEPTION 'duplicate source tag accepted';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+END $$;
+INSERT INTO public.error_404_logs (code, original_referrer, source_label, source_kind, is_bot, created_at) VALUES
+  ('a-cs', NULL, 'cs', 'explicit', false, '2024-05-03 10:00:00+00'),
+  ('a-cs-upper', NULL, ' CS ', 'explicit', false, '2024-05-03 10:01:00+00'),
+  ('a-cs-mixed', NULL, 'Cs', 'explicit', false, '2024-05-03 10:02:00+00'),
+  ('a-cs-referrer-kind', NULL, 'cs', 'referrer', false, '2024-05-03 10:03:00+00'),
+  ('a-cs-prefix', NULL, 'csx', 'explicit', false, '2024-05-03 10:04:00+00'),
+  ('a-other-tag', NULL, 'xx', 'explicit', false, '2024-05-03 10:05:00+00'),
+  ('a-unknown-tag', NULL, 'zz', 'explicit', false, '2024-05-03 10:06:00+00'),
+  ('a-hostname', NULL, 'couponswift.com', 'explicit', false, '2024-05-03 10:07:00+00');
+
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.role', 'authenticated', false);
+SELECT set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', false);
+DO $$ DECLARE report jsonb; row_data jsonb; BEGIN
+  report := public.wiseurl_missing_links_report('2024-05-03', '2024-05-03');
+  ASSERT (report #>> '{summary,requests}')::integer = 4, 'owner one alias count mismatch: ' || (report #>> '{summary,requests}');
+  FOR row_data IN SELECT value FROM jsonb_array_elements(report -> 'rows') value WHERE (value ->> 'requests')::integer > 0 LOOP
+    ASSERT row_data ->> 'code' IN ('a-cs', 'a-cs-upper', 'a-cs-mixed', 'a-hostname'), 'unexpected row: ' || (row_data ->> 'code');
+    ASSERT row_data ->> 'leading_source' = 'couponswift.com', 'leading source must stay the approved hostname';
+  END LOOP;
+END $$;
+SELECT set_config('request.jwt.claim.sub', '20000000-0000-4000-8000-000000000002', false);
+DO $$ DECLARE report jsonb; BEGIN
+  report := public.wiseurl_missing_links_report('2024-05-03', '2024-05-03');
+  ASSERT (report #>> '{summary,requests}')::integer = 1, 'owner two must count only its own tag';
+  ASSERT report -> 'rows' @> '[{"code":"a-other-tag","leading_source":"other-publisher.example"}]'::jsonb, 'owner two alias row missing';
 END $$;
