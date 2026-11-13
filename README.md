@@ -69,10 +69,10 @@ npm install
 
 1. Create a free project at [supabase.com](https://supabase.com)
 2. Go to the SQL Editor and run `supabase/schema.sql`
-3. Run `supabase/migrations/0001_source_analytics.sql`, `supabase/migrations/0002_overview.sql`, `supabase/migrations/0003_missing_links.sql`, then `supabase/migrations/0004_missing_links_no_referrer.sql` to install source analytics and the portfolio overview
+3. Run `supabase/migrations/0001_source_analytics.sql`, `supabase/migrations/0002_overview.sql`, `supabase/migrations/0003_missing_links.sql`, `supabase/migrations/0004_missing_links_no_referrer.sql`, then `supabase/migrations/0005_missing_links_explicit_source.sql` to install source analytics and the portfolio overview
 4. Get your **Project URL** and **anon Key** from Project Settings > API
 
-For an existing installation, run any unapplied migrations in order: `0001_source_analytics.sql`, `0002_overview.sql`, `0003_missing_links.sql`, then `0004_missing_links_no_referrer.sql`. Apply the migration before deploying application code. The migration is additive and safe to rerun. See [Source analytics operations](docs/source-analytics-operations.md) for rollout, attribution, cache, and rollback details.
+For an existing installation, run any unapplied migrations in order: `0001_source_analytics.sql`, `0002_overview.sql`, `0003_missing_links.sql`, `0004_missing_links_no_referrer.sql`, then `0005_missing_links_explicit_source.sql`. Apply the migration before deploying application code. The migration is additive and safe to rerun. See [Source analytics operations](docs/source-analytics-operations.md) for rollout, attribution, cache, and rollback details.
 
 ### 3. Configure Environment
 
@@ -119,7 +119,7 @@ The easiest way to deploy WiseURL is with Netlify.
 1. Fork this repository.
 2. Create a new site on Netlify and select your forked repo.
 3. Add your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the Netlify Build settings.
-4. Apply `supabase/migrations/0001_source_analytics.sql`, `supabase/migrations/0002_overview.sql`, `supabase/migrations/0003_missing_links.sql`, then `supabase/migrations/0004_missing_links_no_referrer.sql` to the production database.
+4. Apply `supabase/migrations/0001_source_analytics.sql`, `supabase/migrations/0002_overview.sql`, `supabase/migrations/0003_missing_links.sql`, `supabase/migrations/0004_missing_links_no_referrer.sql`, then `supabase/migrations/0005_missing_links_explicit_source.sql` to the production database.
 5. Deploy the application only after the migration succeeds.
 
 ## 🤝 Contributing

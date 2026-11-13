@@ -91,3 +91,22 @@ test('aborts a click insert that exceeds the tracking bound', async () => {
   assert.equal(result.mode, 'failed')
   assert.equal(result.error?.code, 'TIMEOUT')
 })
+
+import { persistMissingWithFallback, toLegacyMissingPayload, type MissingPayload } from '../src/lib/click-tracking.ts'
+const missing: MissingPayload = { code: 'x', original_referrer: null, source_label: 'couponswift.com', source_kind: 'explicit', is_bot: false }
+test('404 logging drops only the source columns when the database predates migration 0005', async () => {
+  assert.equal('source_label' in toLegacyMissingPayload(missing), false)
+  assert.equal(toLegacyMissingPayload(missing).code, 'x')
+  const seen: Record<string, unknown>[] = []
+  const signal = new AbortController().signal
+  const result = await persistMissingWithFallback(missing, async payload => {
+    seen.push(payload)
+    return 'source_label' in payload ? { error: { code: 'PGRST204', message: "Could not find the 'source_label' column" } } : { error: null }
+  }, signal)
+  assert.deepEqual([result.error, result.legacy, seen.length], [null, true, 2])
+  const ok = await persistMissingWithFallback(missing, async () => ({ error: null }), signal)
+  assert.deepEqual([ok.error, ok.legacy], [null, false])
+  const other = await persistMissingWithFallback(missing, async () => ({ error: { code: '42501', message: 'denied' } }), signal)
+  assert.equal(other.error?.code, '42501')
+  assert.equal(other.legacy, false)
+})

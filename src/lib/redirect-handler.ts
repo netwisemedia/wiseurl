@@ -1,5 +1,5 @@
-import { buildDestination, extractAttribution } from './attribution.ts'
-import { buildClickPayload, type ClickPayload } from './click-tracking.ts'
+import { buildDestination, extractAttribution, resolveSource } from './attribution.ts'
+import { buildClickPayload, type ClickPayload, type MissingPayload } from './click-tracking.ts'
 import { createHandoffDocument, handoffHeaders } from './redirect-page.ts'
 import { parseUserAgent } from './user-agent.ts'
 
@@ -9,7 +9,7 @@ export interface RedirectDependencies {
   resolve: (code: string) => Promise<RedirectLink | null>
   record: (payload: ClickPayload) => Promise<void>
   schedule: ScheduleWork
-  recordMissing?: (payload: Record<string, unknown>) => Promise<void>
+  recordMissing?: (payload: MissingPayload) => Promise<void>
   geo?: { country: string | null; city: string | null }
 }
 
@@ -43,8 +43,10 @@ export async function handleRedirect(request: Request, code: string, dependencie
   const lookupMs = performance.now() - started
   if (!link) {
     if (method === 'GET' && dependencies.recordMissing) {
-      const payload = { code, original_referrer: originalReferrer, country: geo.country, city: geo.city,
-        device_type: deviceType, os_name: osName, browser_name: browserName, is_bot: isBot }
+      const source = resolveSource(extractAttribution(new URL(request.url).searchParams).utm_source, originalReferrer)
+      const payload: MissingPayload = { code, original_referrer: originalReferrer, country: geo.country, city: geo.city,
+        device_type: deviceType, os_name: osName, browser_name: browserName, is_bot: isBot,
+        source_label: source.label, source_kind: source.kind }
       dependencies.schedule(() => dependencies.recordMissing!(payload))
     }
     return new Response(method === 'HEAD' ? null : '<!doctype html><html lang="en"><head><title>Link Not Found - WiseURL</title></head><body><h1>Link not found</h1><p>This link does not exist or has been deactivated.</p></body></html>', { status: 404, headers })

@@ -103,11 +103,37 @@ export function toLegacyClickPayload(payload: ClickPayload): LegacyClickPayload 
   }
 }
 
-function isMissingAttributionColumn(error: ClickInsertError): boolean {
+export function isMissingAttributionColumn(error: ClickInsertError): boolean {
   return error.code === '42703' || error.code === 'PGRST204' || (
     /column/i.test(error.message) &&
     /(click_id|utm_|sub_id|query_params|source_label|source_kind)/i.test(error.message)
   )
+}
+
+export interface MissingPayload extends Record<string, unknown> {
+  code: string
+  original_referrer: string | null
+  source_label: string
+  source_kind: SourceKind
+}
+
+/** The 404 log row without the source columns, for databases where migration 0005 is not applied yet. */
+export function toLegacyMissingPayload(payload: MissingPayload): Record<string, unknown> {
+  const { source_label: _label, source_kind: _kind, ...legacy } = payload
+  void _label; void _kind
+  return legacy
+}
+
+/** One shared signal bounds both attempts; an unknown-column error retries once without the source columns. */
+export async function persistMissingWithFallback(
+  payload: MissingPayload,
+  insert: InsertClick,
+  signal: AbortSignal,
+): Promise<{ error: ClickInsertError | null; legacy: boolean }> {
+  const first = await insert(payload, signal)
+  if (!first.error || !isMissingAttributionColumn(first.error)) return { error: first.error, legacy: false }
+  const second = await insert(toLegacyMissingPayload(payload), signal)
+  return { error: second.error, legacy: true }
 }
 
 export async function persistClickWithFallback(

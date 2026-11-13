@@ -19,7 +19,6 @@ export type MissingLinkRow = {
   last_30d_requests?: number
 }
 
-export const NO_REFERRER_SOURCE = 'direct / no referrer'
 
 export type MissingLinksReport = {
   summary: {
@@ -32,7 +31,7 @@ export type MissingLinksReport = {
     is_partial: boolean
     traffic: MissingLinkTrafficMode
     sources_configured: string[]
-    // true once migration 0004 counts requests without a referrer
+    // legacy field (migration 0004); always false since 0005
     includes_no_referrer?: boolean
   }
   rows: MissingLinkRow[]

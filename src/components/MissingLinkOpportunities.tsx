@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertCircle, Download, Plus, RefreshCw, Search, Pencil } from 'lucide-react'
 import { overviewFilters, overviewRange, formatCount, reportTime } from '@/lib/overview'
 import { PERIOD_ORDERS, canConfigureCode, isShortCodeCandidate, opportunityCsv, rankOpportunities, type OpportunityOrder, type OpportunityStatus } from '@/lib/opportunities'
-import { NO_REFERRER_SOURCE } from '@/lib/missing-links'
 import { PAGE_SIZE_PARAM, parsePageSize } from '@/lib/page-size'
 import PageSizeSelect from './PageSizeSelect'
 import ReportFilters from './overview/ReportFilters'
@@ -108,7 +107,7 @@ export default function MissingLinkOpportunities({ revision, onCreate, onEdit }:
         <section className="metric-card"><h2>Unconfigured links with demand</h2><p className="metric-value">{formatCount(open.filter(row => row.requests > 0).length)}</p><p className="text-xs text-[var(--muted-foreground)] mt-3">Missing or inactive destinations · current period</p></section>
         <section className="metric-card"><h2>Now configured</h2><p className="metric-value">{formatCount(resolved.length)}</p><button className="text-xs text-[var(--primary)] mt-3 hover:underline" onClick={() => { setStatus('resolved'); setOrder('requests'); setSearch('') }}>Review resolved links →</button></section>
       </div>
-      <div className="report-panel p-4 text-sm text-[var(--muted-foreground)]">{data.report.summary.sources_configured.length ? <>Source coverage: <strong className="text-[var(--foreground)]">{data.report.summary.sources_configured.join(', ')}</strong>. {data.report.summary.includes_no_referrer ? <>Requests with no referrer are included as <strong className="text-[var(--foreground)]">{NO_REFERRER_SOURCE}</strong>. Requests from other referrer sites are excluded.</> : <>Requests without an identifiable owned source are excluded.</>}</> : <>No source sites are connected to this account yet. An administrator must verify and connect your source domain before its demand can appear.</>}</div>
+      <div className="report-panel p-4 text-sm text-[var(--muted-foreground)]">{data.report.summary.sources_configured.length ? <>Source coverage: <strong className="text-[var(--foreground)]">{data.report.summary.sources_configured.join(', ')}</strong>. Counted: requests whose referrer is one of these sites, or that carry a matching <code>utm_source</code> source tag. Requests with neither are excluded.</> : <>No source sites are connected to this account yet. An administrator must verify and connect your source domain before its demand can appear.</>}</div>
       <section className="report-panel" aria-labelledby="opportunities-title">
         <div className="panel-heading"><div><h2 id="opportunities-title">Prioritize your next affiliate links</h2><p>Recorded requests that reached a missing or inactive WiseURL destination.</p></div></div>
         <div className="px-5 pb-4 flex flex-wrap gap-3">

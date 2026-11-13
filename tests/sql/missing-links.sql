@@ -21,7 +21,8 @@ $$;
 \ir ../../supabase/migrations/0002_overview.sql
 \ir ../../supabase/migrations/0003_missing_links.sql
 \ir ../../supabase/migrations/0004_missing_links_no_referrer.sql
-\ir ../../supabase/migrations/0004_missing_links_no_referrer.sql
+\ir ../../supabase/migrations/0005_missing_links_explicit_source.sql
+\ir ../../supabase/migrations/0005_missing_links_explicit_source.sql
 
 GRANT USAGE ON SCHEMA public, auth TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION auth.uid(), auth.role() TO authenticated, anon;
@@ -62,17 +63,17 @@ INSERT INTO public.error_404_logs (code, original_referrer, is_bot, created_at) 
 CREATE FUNCTION pg_temp.noon(days_ago integer) RETURNS timestamptz LANGUAGE sql AS $$
   SELECT (((statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date - days_ago)::timestamp + interval '12 hours') AT TIME ZONE 'Europe/Bucharest'
 $$;
-INSERT INTO public.error_404_logs (code, original_referrer, is_bot, created_at) VALUES
-  ('period-code', 'https://couponswift.com/company/period-code', false, ((statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date)::timestamp AT TIME ZONE 'Europe/Bucharest'),
-  ('period-code', 'https://couponswift.com/company/period-code', false, pg_temp.noon(1)),
-  ('period-code', NULL, false, pg_temp.noon(1)),
-  ('period-code', 'https://couponswift.com/company/period-code', true, pg_temp.noon(1)),
-  ('period-code', 'https://scanner.example/', false, pg_temp.noon(1)),
-  ('period-code', 'https://couponswift.com/company/period-code', false, pg_temp.noon(3)),
-  ('period-code', 'https://couponswift.com/company/period-code', false, pg_temp.noon(6)),
-  ('period-code', 'https://couponswift.com/company/period-code', false, pg_temp.noon(7)),
-  ('period-code', 'https://couponswift.com/company/period-code', false, pg_temp.noon(29)),
-  ('period-code', 'https://couponswift.com/company/period-code', false, pg_temp.noon(30));
+INSERT INTO public.error_404_logs (code, original_referrer, source_label, source_kind, is_bot, created_at) VALUES
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, false, ((statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date)::timestamp AT TIME ZONE 'Europe/Bucharest'),
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, false, pg_temp.noon(1)),
+  ('period-code', NULL, 'couponswift.com', 'explicit', false, pg_temp.noon(1)),
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, true, pg_temp.noon(1)),
+  ('period-code', 'https://scanner.example/', NULL, NULL, false, pg_temp.noon(1)),
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, false, pg_temp.noon(3)),
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, false, pg_temp.noon(6)),
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, false, pg_temp.noon(7)),
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, false, pg_temp.noon(29)),
+  ('period-code', 'https://couponswift.com/company/period-code', NULL, NULL, false, pg_temp.noon(30));
 
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.role', 'authenticated', false);
@@ -88,8 +89,8 @@ BEGIN
   ASSERT jsonb_array_length(report -> 'rows') = 5, 'current and previous codes should be present';
   ASSERT NOT (report -> 'rows') @> '[{"code":"other-owner"}]'::jsonb, 'other tenant code leaked';
   ASSERT NOT (report -> 'rows') @> '[{"code":"source-lookalike"}]'::jsonb, 'hostname lookalike matched';
-  ASSERT NOT (report -> 'rows') @> '[{"code":"no-referrer"}]'::jsonb, 'missing referrer matched while two users own sources';
-  ASSERT (report #>> '{summary,includes_no_referrer}')::boolean = false, 'no-referrer must not be attributed with several source owners';
+  ASSERT NOT (report -> 'rows') @> '[{"code":"no-referrer"}]'::jsonb, 'a request without referrer or source tag must be excluded';
+  ASSERT NOT (report -> 'rows') @> '[{"code":"invalid-referrer"}]'::jsonb, 'an unparseable referrer without a source tag must be excluded';
 
   SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 'now-resolved';
   ASSERT row_data ->> 'status' = 'resolved' AND row_data ->> 'link_id' = '11111111-1111-4111-8111-111111111111', 'owned active state mismatch';
@@ -148,46 +149,62 @@ DO $$ DECLARE report jsonb; BEGIN
   ASSERT NOT (report -> 'rows') @> '[{"code":"bulk-missing"}]'::jsonb, 'owner one data leaked';
 END $$;
 
--- Single source owner: requests with no usable referrer are attributed to that owner.
+-- Explicit source tags (utm_source) on 404 rows. Dated 2024-05-02, away from the fixtures above.
 RESET ROLE;
 SELECT set_config('request.jwt.claim.sub', '', false);
-DELETE FROM public.wiseurl_reporting_sources WHERE user_id = '20000000-0000-4000-8000-000000000002';
+INSERT INTO public.wiseurl_reporting_sources (hostname, user_id) VALUES ('second-site.example', '10000000-0000-4000-8000-000000000001');
+INSERT INTO public.error_404_logs (code, original_referrer, source_label, source_kind, is_bot, created_at) VALUES
+  ('t-explicit', NULL, 'couponswift.com', 'explicit', false, '2024-05-02 10:00:00+00'),
+  ('t-explicit-www', NULL, 'WWW.CouponSwift.com.', 'explicit', false, '2024-05-02 10:01:00+00'),
+  ('t-ref-and-tag', 'https://couponswift.com/x', 'couponswift.com', 'explicit', false, '2024-05-02 10:02:00+00'),
+  ('t-tag-wins', 'https://couponswift.com/x', 'second-site.example', 'explicit', false, '2024-05-02 10:03:00+00'),
+  ('t-referrer-only', 'https://www.couponswift.com/x', 'couponswift.com', 'referrer', false, '2024-05-02 10:04:00+00'),
+  ('t-none', NULL, 'Unknown source', 'unknown', false, '2024-05-02 10:05:00+00'),
+  ('t-legacy-row', NULL, NULL, NULL, false, '2024-05-02 10:06:00+00'),
+  ('t-unapproved-tag', NULL, 'unapproved.example', 'explicit', false, '2024-05-02 10:07:00+00'),
+  ('t-lookalike-tag', NULL, 'couponswift.com.evil.example', 'explicit', false, '2024-05-02 10:08:00+00'),
+  ('t-kind-mismatch', NULL, 'couponswift.com', 'referrer', false, '2024-05-02 10:09:00+00'),
+  ('t-other-owner-tag', NULL, 'other-publisher.example', 'explicit', false, '2024-05-02 10:10:00+00'),
+  ('t-bot-tag', NULL, 'couponswift.com', 'explicit', true, '2024-05-02 10:11:00+00');
 
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.role', 'authenticated', false);
 SELECT set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', false);
 DO $$
-DECLARE report jsonb; row_data jsonb;
+DECLARE report jsonb; row_data jsonb; today date := (statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date;
 BEGIN
-  report := public.wiseurl_missing_links_report('2024-04-10', '2024-04-10');
-  ASSERT (report #>> '{summary,includes_no_referrer}')::boolean, 'no-referrer inclusion flag missing';
-  -- 1203 approved-source rows + no-referrer + invalid-referrer + empty-referrer (the bot no-referrer row is excluded)
-  ASSERT (report #>> '{summary,requests}')::integer = 1206, 'no-referrer requests not counted';
-  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 'no-referrer';
-  ASSERT (row_data ->> 'requests')::integer = 1 AND row_data ->> 'leading_source' = 'direct / no referrer', 'no-referrer row or label mismatch';
-  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 'invalid-referrer';
-  ASSERT (row_data ->> 'requests')::integer = 1, 'unparseable referrer must count as no referrer';
-  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 'empty-referrer';
-  ASSERT (row_data ->> 'requests')::integer = 1, 'empty referrer must count as no referrer';
-  ASSERT NOT (report -> 'rows') @> '[{"code":"source-lookalike"}]'::jsonb, 'lookalike host must stay excluded';
-  ASSERT NOT (report -> 'rows') @> '[{"code":"other-owner"}]'::jsonb, 'unapproved referrer host must stay excluded';
-  report := public.wiseurl_missing_links_report('2024-04-10', '2024-04-10', 'bots');
-  ASSERT (report #>> '{summary,requests}')::integer = 6, 'bot no-referrer row must follow the traffic filter';
+  report := public.wiseurl_missing_links_report('2024-05-02', '2024-05-02');
+  ASSERT (report #>> '{summary,includes_no_referrer}')::boolean = false, 'no-referrer inclusion must stay off';
+  ASSERT (report #>> '{summary,requests}')::integer = 5, 'explicit-source and referrer matches mismatch: ' || (report #>> '{summary,requests}');
+  ASSERT jsonb_array_length(report -> 'rows') = 5, 'row count mismatch';
+  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 't-explicit';
+  ASSERT row_data ->> 'leading_source' = 'couponswift.com', 'explicit tag must report the approved hostname';
+  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 't-explicit-www';
+  ASSERT row_data ->> 'leading_source' = 'couponswift.com', 'tag must match lower-case, without www and trailing dot';
+  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 't-ref-and-tag';
+  ASSERT (row_data ->> 'requests')::integer = 1, 'referrer plus tag must count once';
+  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 't-tag-wins';
+  ASSERT (row_data ->> 'requests')::integer = 1 AND row_data ->> 'leading_source' = 'second-site.example', 'explicit tag must win over the referrer host';
+  SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 't-referrer-only';
+  ASSERT row_data ->> 'leading_source' = 'couponswift.com', 'referrer match must still count';
+  FOR row_data IN SELECT value FROM jsonb_array_elements(report -> 'rows') value LOOP
+    ASSERT row_data ->> 'code' NOT IN ('t-none', 't-legacy-row', 't-unapproved-tag', 't-lookalike-tag', 't-kind-mismatch', 't-other-owner-tag', 't-bot-tag'),
+      'excluded request leaked: ' || (row_data ->> 'code');
+  END LOOP;
+  report := public.wiseurl_missing_links_report('2024-05-02', '2024-05-02', 'bots');
+  ASSERT (report #>> '{summary,requests}')::integer = 1, 'tagged bot must follow the traffic filter';
 
-  -- today / yesterday / 7d / 30d, non-bot: scanner host and bot row excluded, no-referrer included
-  report := public.wiseurl_missing_links_report(
-    (statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date, (statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date);
+  -- period columns: today / yesterday / 7d / 30d, non-bot; scanner host, bot row and untagged rows excluded
+  report := public.wiseurl_missing_links_report(today, today);
   SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 'period-code';
   ASSERT (row_data ->> 'today_requests')::integer = 1, 'today count mismatch';
-  ASSERT (row_data ->> 'yesterday_requests')::integer = 2, 'yesterday count mismatch';
+  ASSERT (row_data ->> 'yesterday_requests')::integer = 2, 'yesterday count mismatch (referrer + tagged)';
   ASSERT (row_data ->> 'last_7d_requests')::integer = 5, 'last 7 days count mismatch';
   ASSERT (row_data ->> 'last_30d_requests')::integer = 7, 'last 30 days count mismatch';
   ASSERT (row_data ->> 'requests')::integer = 1, 'selected-range count must stay independent of the period columns';
-  -- period counts are independent of the selected range and honor the traffic filter
   report := public.wiseurl_missing_links_report('2024-04-10', '2024-04-10', 'all');
   ASSERT NOT (report -> 'rows') @> '[{"code":"period-code"}]'::jsonb, 'codes outside the selected range must not be added';
-  report := public.wiseurl_missing_links_report(
-    (statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date, (statement_timestamp() AT TIME ZONE 'Europe/Bucharest')::date, 'all');
+  report := public.wiseurl_missing_links_report(today, today, 'all');
   SELECT value INTO row_data FROM jsonb_array_elements(report -> 'rows') value WHERE value ->> 'code' = 'period-code';
   ASSERT (row_data ->> 'yesterday_requests')::integer = 3, 'all-traffic yesterday count mismatch';
 END
@@ -195,7 +212,7 @@ $$;
 
 SELECT set_config('request.jwt.claim.sub', '20000000-0000-4000-8000-000000000002', false);
 DO $$ DECLARE report jsonb; BEGIN
-  report := public.wiseurl_missing_links_report('2024-04-10', '2024-04-10');
-  ASSERT (report #>> '{summary,requests}')::integer = 0 AND jsonb_array_length(report -> 'rows') = 0, 'a user without reporting sources must see nothing';
-  ASSERT (report #>> '{summary,includes_no_referrer}')::boolean = false, 'a user without sources must not get no-referrer rows';
+  report := public.wiseurl_missing_links_report('2024-05-02', '2024-05-02');
+  ASSERT (report #>> '{summary,requests}')::integer = 1, 'owner two must see only its own tagged request';
+  ASSERT report -> 'rows' @> '[{"code":"t-other-owner-tag","leading_source":"other-publisher.example"}]'::jsonb, 'owner two tag row missing';
 END $$;

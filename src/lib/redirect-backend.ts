@@ -1,4 +1,4 @@
-import { persistClickWithFallback, type ClickPayload } from './click-tracking.ts'
+import { persistClickWithFallback, persistMissingWithFallback, type ClickPayload, type MissingPayload } from './click-tracking.ts'
 import type { RedirectLink } from './redirect-handler.ts'
 
 /** Public redirect access uses the existing anon RLS policies, never admin credentials or visitor sessions. */
@@ -26,8 +26,8 @@ export function createRedirectBackend(url: string, anonKey: string, fetcher: typ
       if (!result.recorded) console.error('Click tracking failed:', result.error?.code)
       else if (result.mode === 'legacy') console.warn('Click attribution columns unavailable')
     },
-    async recordMissing(payload: Record<string, unknown>): Promise<void> {
-      const result = await insert('error_404_logs', payload, AbortSignal.timeout(750))
+    async recordMissing(payload: MissingPayload): Promise<void> {
+      const result = await persistMissingWithFallback(payload, (candidate, signal) => insert('error_404_logs', candidate, signal), AbortSignal.timeout(750))
       if (result.error) console.error('Missing link logging failed:', result.error.code)
     },
   }

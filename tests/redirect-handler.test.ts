@@ -66,3 +66,22 @@ test('public edge routing excludes application, assets and nested paths', () => 
   assert.equal(shortCodeFromPath('/altushost'), 'altushost')
   assert.equal(shortCodeFromPath('/my-Link_2'), 'my-Link_2')
 })
+
+test('missing-code logging stores the resolved source and the 404 response stays identical', async () => {
+  const logged: Record<string, unknown>[] = []
+  const deps = { resolve: async () => null, record: async () => {}, schedule: (work: () => Promise<void>) => { void work() }, recordMissing: async (p: Record<string, unknown>) => { logged.push(p) } }
+  const bare = await handleRedirect(new Request('https://wiseurl.net/missing'), 'missing', { ...deps, recordMissing: undefined })
+  const tagged = await handleRedirect(new Request('https://wiseurl.net/missing?utm_source=%20CouponSwift.com%20'), 'missing', deps as never)
+  assert.equal(tagged.status, 404)
+  assert.equal(await tagged.text(), await bare.text())
+  assert.deepEqual([...tagged.headers].sort(), [...bare.headers].sort())
+  assert.equal(logged[0].source_label, 'CouponSwift.com')
+  assert.equal(logged[0].source_kind, 'explicit')
+  await handleRedirect(new Request('https://wiseurl.net/missing', { headers: { referer: 'https://www.Example.org/page' } }), 'missing', deps as never)
+  assert.deepEqual([logged[1].source_label, logged[1].source_kind], ['example.org', 'referrer'])
+  await handleRedirect(new Request('https://wiseurl.net/missing'), 'missing', deps as never)
+  assert.deepEqual([logged[2].source_label, logged[2].source_kind], ['Unknown source', 'unknown'])
+  const long = 'a'.repeat(400)
+  await handleRedirect(new Request(`https://wiseurl.net/missing?utm_source=${long}`), 'missing', deps as never)
+  assert.equal((logged[3].source_label as string).length, 255)
+})
