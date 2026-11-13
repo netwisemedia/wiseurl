@@ -23,3 +23,22 @@ test('CSV includes previous volume and snapshot metadata, protects spreadsheet f
   assert.match(csv, /"'=HYPERLINK\(""evil""\)"/)
   assert.match(csv, /2026-09-01,2026-09-07,non_bot,2026-09-08T00:00:00Z/)
 })
+
+const periodRows = [
+  { ...rows[0], code: 'a', requests: 5, today_requests: 1, yesterday_requests: 9, last_7d_requests: 20, last_30d_requests: 40 },
+  { ...rows[0], code: 'b', requests: 9, today_requests: 4, yesterday_requests: 0, last_7d_requests: 10, last_30d_requests: 90 },
+  { ...rows[0], code: 'legacy', requests: 7 },
+]
+test('rows rank by each period column; rows without the new fields (old SQL function) count as zero', () => {
+  const rank = (order: 'today' | 'yesterday' | 'last_7d' | 'last_30d') => rankOpportunities(periodRows as never, 'open', order, '').map(r => r.code)
+  assert.deepEqual(rank('today'), ['b', 'a', 'legacy'])
+  assert.deepEqual(rank('yesterday'), ['a', 'b', 'legacy'])
+  assert.deepEqual(rank('last_7d'), ['a', 'b', 'legacy'])
+  assert.deepEqual(rank('last_30d'), ['b', 'a', 'legacy'])
+})
+test('CSV exports the period columns and leaves them empty for rows without them', () => {
+  const csv = opportunityCsv(periodRows as never, { from: '2026-09-01', to: '2026-09-07', traffic: 'non_bot' }, 'x').split('\r\n')
+  assert.match(csv[0], /,change,today,yesterday,last_7_days,last_30_days,leading_source,/)
+  assert.match(csv[1], /^a,missing,5,10,[^,]+,1,9,20,40,couponswift\.com,/)
+  assert.match(csv[3], /^legacy,missing,7,10,[^,]+,,,,,couponswift\.com,/)
+})

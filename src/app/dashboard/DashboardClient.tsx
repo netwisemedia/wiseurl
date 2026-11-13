@@ -30,6 +30,8 @@ import SourceAnalytics from '@/components/SourceAnalytics'
 import Overview from '@/components/overview/Overview'
 import MissingLinkOpportunities from '@/components/MissingLinkOpportunities'
 import SourceTaggedUrl from '@/components/SourceTaggedUrl'
+import PageSizeSelect from '@/components/PageSizeSelect'
+import { PAGE_SIZE_PARAM, parsePageSize } from '@/lib/page-size'
 import { createClient } from '@/lib/supabase/client'
 import type { Group, Link as LinkType } from '@/lib/types'
 
@@ -98,10 +100,17 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
       .sort((first, second) => first.code.localeCompare(second.code))
   }, [links, searchQuery, selectedGroupId])
 
-  const pageSize = 25
+  const pageSize = parsePageSize(searchParams.get(PAGE_SIZE_PARAM))
   const pageCount = Math.max(1, Math.ceil(filteredLinks.length / pageSize))
   const safePage = Math.min(currentPage, pageCount)
   const pagedLinks = filteredLinks.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  const changePageSize = (value: number) => {
+    const query = new URLSearchParams(searchParams.toString())
+    query.set(PAGE_SIZE_PARAM, String(value))
+    setCurrentPage(1)
+    router.replace(`/dashboard?${query}`, { scroll: false })
+  }
 
   const changeSearch = (value: string) => {
     setSearchQuery(value)
@@ -219,9 +228,10 @@ export default function DashboardClient({ initialLinks, initialGroups, userEmail
                   </tbody>
                 </table>
               </div>
-              {pageCount > 1 && (
-                <div className="p-4 border-t border-[var(--border)] flex items-center justify-between">
-                  <p className="text-sm text-[var(--muted-foreground)]">Page {safePage} of {pageCount}</p>
+              {filteredLinks.length > 0 && (
+                <div className="p-4 border-t border-[var(--border)] flex items-center justify-between gap-3 flex-wrap">
+                  <PageSizeSelect value={pageSize} onChange={changePageSize} />
+                  <p className="text-sm text-[var(--muted-foreground)]">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredLinks.length)} of {filteredLinks.length.toLocaleString()} links · Page {safePage} of {pageCount}</p>
                   <div className="flex gap-2">
                     <button type="button" className="btn btn-secondary text-sm" disabled={safePage === 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))}>Previous</button>
                     <button type="button" className="btn btn-secondary text-sm" disabled={safePage === pageCount} onClick={() => setCurrentPage(page => Math.min(pageCount, page + 1))}>Next</button>

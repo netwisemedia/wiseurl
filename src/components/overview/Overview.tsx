@@ -7,6 +7,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { overviewCsv, overviewFilters, overviewRange, rankLinks, formatCount, reportTime, TRAFFIC_LABELS, type RankingMode } from '@/lib/overview'
 import type { OverviewResponse } from '@/lib/overview-types'
 import type { Group } from '@/lib/types'
+import { PAGE_SIZE_PARAM, parsePageSize } from '@/lib/page-size'
 import ReportFilters from './ReportFilters'
 import LinkRanking, { ChangeBadge } from './LinkRanking'
 
@@ -32,6 +33,7 @@ export default function Overview({ groups, onCreate, revision }: { groups: Group
   const rank = params.get('rank')
   const mode: RankingMode = rank === 'growth' || rank === 'decline' || rank === 'zero' ? rank : 'clicks'
   const search = params.get('q') || ''
+  const pageSize = parsePageSize(params.get(PAGE_SIZE_PARAM))
 
   const update = (values: Record<string, string | null>) => {
     const query = new URLSearchParams(queryString)
@@ -106,7 +108,7 @@ export default function Overview({ groups, onCreate, revision }: { groups: Group
         </section>
       </div>
       <div className="flex flex-wrap items-center gap-2" aria-label="Quick performance views"><span className="text-xs font-medium text-[var(--muted-foreground)] mr-1">EXPLORE</span>{([{ key: 'clicks', label: 'Top performers' }, { key: 'growth', label: 'Gaining traffic' }, { key: 'decline', label: 'Losing traffic' }, { key: 'zero', label: 'No clicks' }] as const).map(item => <button type="button" key={item.key} aria-pressed={mode === item.key} className={`period-button ${mode === item.key ? 'selected' : ''}`} onClick={() => update({ rank: item.key, q: null })}>{item.label}</button>)}</div>
-      <LinkRanking key={`${data.asOf}:${mode}`} rows={rows} total={summary.clicks} filters={filters} asOf={data.asOf} groups={groups} mode={mode} search={search} update={update} onSource={source => update({ source })} />
+      <LinkRanking key={`${data.asOf}:${mode}`} rows={rows} total={summary.clicks} filters={filters} asOf={data.asOf} groups={groups} mode={mode} search={search} pageSize={pageSize} update={update} onSource={source => update({ source })} />
       <section className="report-panel" aria-labelledby="sources-title"><div className="panel-heading"><div><h2 id="sources-title">Where your traffic comes from</h2><p>Select a source to see the shortlinks it sends traffic to.</p></div><Globe2 size={18} className="text-[var(--muted-foreground)]" /></div>
         <div className="overflow-x-auto"><table className="ranking-table source-table"><thead><tr><th>Source site / label</th><th>Attribution</th><th className="numeric">Clicks</th><th className="numeric">Previous</th><th>Change</th><th>Share</th><th>Leading link</th></tr></thead><tbody>{sources.slice(0, showAllSources ? undefined : 8).map(source => <tr key={source.source}><td><button className="font-medium text-[var(--primary)] hover:underline text-left break-all" onClick={() => update({ source: source.source })}>{source.source}</button></td><td><span className="text-xs text-[var(--muted-foreground)]">{source.provenance === 'explicit' ? 'Source tag' : source.provenance === 'referrer' ? 'Referrer' : source.provenance === 'mixed' ? 'Mixed' : 'Unavailable'}</span></td><td className="numeric font-semibold">{formatCount(source.clicks)}</td><td className="numeric text-[var(--muted-foreground)]">{formatCount(source.previous_clicks)}</td><td><ChangeBadge current={source.clicks} previous={source.previous_clicks} /></td><td className="text-xs tabular-nums">{summary.clicks ? (source.clicks / summary.clicks * 100).toFixed(1) : '0.0'}%</td><td className="text-xs">{source.leading_link_code ? `/${source.leading_link_code}` : '—'}</td></tr>)}</tbody></table>{sources.length === 0 && <p className="py-10 px-5 text-center text-sm text-[var(--muted-foreground)]">No source traffic recorded in these periods.</p>}</div>
         <div className="panel-footer"><span>Source tags take priority over referrers. Unknown means no source was available.</span>{sources.length > 8 && <button className="text-[var(--primary)] shrink-0" onClick={() => setShowAllSources(!showAllSources)}>{showAllSources ? 'Show less' : `View all ${sources.length} sources`}</button>}</div>

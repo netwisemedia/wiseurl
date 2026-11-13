@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertCircle,
   Bot,
@@ -25,6 +26,8 @@ import {
   type AnalyticsScope,
 } from '@/lib/analytics'
 import type { Group, Link as LinkType } from '@/lib/types'
+import { PAGE_SIZE_PARAM, parsePageSize } from '@/lib/page-size'
+import PageSizeSelect from '@/components/PageSizeSelect'
 
 interface Props {
   links: LinkType[]
@@ -58,6 +61,15 @@ function shortDestination(value: string | null): string {
 }
 
 export default function SourceAnalytics({ links, groups, fixedLinkId, initialScope }: Props) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const pageSize = parsePageSize(searchParams.get(PAGE_SIZE_PARAM))
+  const changePageSize = (value: number) => {
+    const query = new URLSearchParams(searchParams.toString())
+    query.set(PAGE_SIZE_PARAM, String(value))
+    router.replace(`${pathname}?${query}`, { scroll: false })
+  }
   const initialRange = useMemo(() => getPresetRange(30), [])
   const [scope, setScope] = useState<AnalyticsScope>({
     ...initialRange,
@@ -97,7 +109,7 @@ export default function SourceAnalytics({ links, groups, fixedLinkId, initialSco
         ...scope,
         asOf: snapshot,
         page: requestedPage,
-        pageSize: 50,
+        pageSize,
       })
       const response = await fetch(`/api/analytics?${query.toString()}`, {
         cache: 'no-store',
@@ -129,7 +141,7 @@ export default function SourceAnalytics({ links, groups, fixedLinkId, initialSco
         activeRequest.current = null
       }
     }
-  }, [scope])
+  }, [scope, pageSize])
 
   useEffect(() => {
     void requestData(1, initialSnapshot.current, true)
@@ -387,7 +399,8 @@ export default function SourceAnalytics({ links, groups, fixedLinkId, initialSco
                 ))}</tbody>
               </table>
             </div>
-            <div className="p-4 border-t border-[var(--border)] flex items-center justify-between gap-3">
+            <div className="p-4 border-t border-[var(--border)] flex items-center justify-between gap-3 flex-wrap">
+              <PageSizeSelect value={pageSize} onChange={changePageSize} disabled={loading} />
               <p className="text-sm text-[var(--muted-foreground)]">Page {page} of {data.pagination.pages} · {data.pagination.total.toLocaleString()} rows</p>
               <div className="flex gap-2">
                 <button type="button" className="btn btn-secondary text-sm" disabled={page <= 1 || loading} onClick={() => void requestData(page - 1, asOf, false)}>Previous</button>

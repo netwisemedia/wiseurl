@@ -8,6 +8,8 @@ import { analyticsDetailHref } from '@/lib/analytics'
 import { destinationHost, formatCount, reportTime, trafficChange, type OverviewFilters, type RankingMode } from '@/lib/overview'
 import type { OverviewLink } from '@/lib/overview-types'
 import type { Group } from '@/lib/types'
+import { PAGE_SIZE_PARAM } from '@/lib/page-size'
+import PageSizeSelect from '../PageSizeSelect'
 
 export function ChangeBadge({ current, previous }: { current: number; previous: number }) {
   const delta = current - previous
@@ -15,15 +17,15 @@ export function ChangeBadge({ current, previous }: { current: number; previous: 
     {delta > 0 ? <ArrowUpRight size={13} /> : delta < 0 ? <ArrowDownRight size={13} /> : null}{trafficChange(current, previous)}
   </span>
 }
-export default function LinkRanking({ rows, total, filters, asOf, groups, mode, search, update, onSource }: {
-  rows: OverviewLink[]; total: number; filters: OverviewFilters; asOf: string; groups: Group[]; mode: RankingMode; search: string
+export default function LinkRanking({ rows, total, filters, asOf, groups, mode, search, pageSize, update, onSource }: {
+  rows: OverviewLink[]; total: number; filters: OverviewFilters; asOf: string; groups: Group[]; mode: RankingMode; search: string; pageSize: number
   update: (values: Record<string, string | null>) => void; onSource: (source: string) => void
 }) {
-  const [pagination, setPagination] = useState({ search, page: 1 })
-  const page = pagination.search === search ? pagination.page : 1
-  const setPage = (value: number) => setPagination({ search, page: value })
+  const [pagination, setPagination] = useState({ search, pageSize, page: 1 })
+  const page = pagination.search === search && pagination.pageSize === pageSize ? pagination.page : 1
+  const setPage = (value: number) => setPagination({ search, pageSize, page: value })
   const [copied, setCopied] = useState<string | null>(null)
-  const pages = Math.max(1, Math.ceil(rows.length / 10))
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const safePage = Math.min(page, pages)
   const copy = async (code: string) => {
     try { await navigator.clipboard.writeText(`${window.location.origin}/${code}`); setCopied(code); toast.success('Short link copied') }
@@ -44,12 +46,12 @@ export default function LinkRanking({ rows, total, filters, asOf, groups, mode, 
     <div className="overflow-x-auto">
       <table className="ranking-table">
         <thead><tr><th>#</th><th>Shortlink / destination</th><th className="numeric">Clicks</th><th className="numeric">Previous</th><th>Change</th><th>Share</th><th>Top source</th><th>Last click</th><th><span className="sr-only">Details</span></th></tr></thead>
-        <tbody>{rows.slice((safePage - 1) * 10, safePage * 10).map((row, index) => {
+        <tbody>{rows.slice((safePage - 1) * pageSize, safePage * pageSize).map((row, index) => {
           const href = analyticsDetailHref(row.id, { ...filters, linkId: null }, asOf)
           const group = groups.find(g => g.id === row.group_id)
           const share = total ? row.clicks / total * 100 : 0
           return <tr key={row.id}>
-            <td className="text-[var(--muted-foreground)] tabular-nums">{(safePage - 1) * 10 + index + 1}</td>
+            <td className="text-[var(--muted-foreground)] tabular-nums">{(safePage - 1) * pageSize + index + 1}</td>
             <td className="min-w-48 max-w-72"><div className="flex items-center gap-2"><Link href={href} className="font-semibold hover:text-[var(--primary)]">/{row.code}</Link><button type="button" title={`Copy /${row.code}`} aria-label={`Copy /${row.code}`} onClick={() => void copy(row.code)} className="icon-button">{copied === row.code ? <Check size={13} /> : <Copy size={13} />}</button>{!row.is_active && <span className="status-inactive">Inactive</span>}</div><p className="truncate text-xs text-[var(--muted-foreground)] mt-1" title={row.destination_url}>{row.title || destinationHost(row.destination_url)}{group ? ` · ${group.name}` : ''}</p></td>
             <td className="numeric font-semibold">{formatCount(row.clicks)}</td><td className="numeric text-[var(--muted-foreground)]">{formatCount(row.previous_clicks)}</td>
             <td><ChangeBadge current={row.clicks} previous={row.previous_clicks} /><div className="text-[10px] text-[var(--muted-foreground)] mt-1 tabular-nums">{row.clicks - row.previous_clicks > 0 ? '+' : ''}{formatCount(row.clicks - row.previous_clicks)} clicks</div></td>
@@ -62,6 +64,6 @@ export default function LinkRanking({ rows, total, filters, asOf, groups, mode, 
       </table>
       {rows.length === 0 && <div className="text-center py-14 px-5"><p className="font-medium">No links match this view</p><p className="text-sm text-[var(--muted-foreground)] mt-2">Try a different ranking or clear your search.</p></div>}
     </div>
-    <div className="panel-footer"><span>{rows.length ? `${(safePage - 1) * 10 + 1}–${Math.min(safePage * 10, rows.length)} of ${formatCount(rows.length)}` : '0 links'}</span><div className="flex gap-2"><button className="btn btn-secondary btn-sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>Previous</button><button className="btn btn-secondary btn-sm" disabled={safePage >= pages} onClick={() => setPage(safePage + 1)}>Next</button></div></div>
+    <div className="panel-footer"><PageSizeSelect value={pageSize} onChange={size => update({ [PAGE_SIZE_PARAM]: String(size) })} /><span>{rows.length ? `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, rows.length)} of ${formatCount(rows.length)}` : '0 links'}</span><div className="flex gap-2"><button className="btn btn-secondary btn-sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>Previous</button><button className="btn btn-secondary btn-sm" disabled={safePage >= pages} onClick={() => setPage(safePage + 1)}>Next</button></div></div>
   </section>
 }

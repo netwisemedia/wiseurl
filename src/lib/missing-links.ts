@@ -11,7 +11,15 @@ export type MissingLinkRow = {
   leading_source: string | null
   status: MissingLinkStatus
   link_id: string | null
+  // Period counts (Europe/Bucharest days, traffic filter applied, independent of the selected range).
+  // Absent when the app runs against the pre-0004 SQL function.
+  today_requests?: number
+  yesterday_requests?: number
+  last_7d_requests?: number
+  last_30d_requests?: number
 }
+
+export const NO_REFERRER_SOURCE = 'direct / no referrer'
 
 export type MissingLinksReport = {
   summary: {
@@ -24,6 +32,8 @@ export type MissingLinksReport = {
     is_partial: boolean
     traffic: MissingLinkTrafficMode
     sources_configured: string[]
+    // true once migration 0004 counts requests without a referrer
+    includes_no_referrer?: boolean
   }
   rows: MissingLinkRow[]
 }
