@@ -42,3 +42,14 @@ test('CSV exports the period columns and leaves them empty for rows without them
   assert.match(csv[1], /^a,missing,5,10,[^,]+,1,9,20,40,couponswift\.com,/)
   assert.match(csv[3], /^legacy,missing,7,10,[^,]+,,,,,couponswift\.com,/)
 })
+
+import { NON_STORE_CODES, isShortCodeCandidate } from '../src/lib/opportunities.ts'
+test('scanner noise is not a short-code candidate; real store codes are', () => {
+  for (const code of ['robots.txt', 'redirect.php', '.env', 'Register', ...NON_STORE_CODES]) assert.equal(isShortCodeCandidate(code), false, code)
+  for (const code of ['hostinger', 'nord-vpn', 'scala_hosting', 'a1']) assert.equal(isShortCodeCandidate(code), true, code)
+})
+test('blocklist entries are unique and lowercase, and include the key generic paths', () => {
+  assert.equal(new Set(NON_STORE_CODES).size, NON_STORE_CODES.length)
+  for (const code of NON_STORE_CODES) assert.equal(code, code.toLowerCase())
+  for (const code of ['register', 'wp-admin', 'cgi-bin', 'sitemap']) assert.ok(NON_STORE_CODES.includes(code))
+})

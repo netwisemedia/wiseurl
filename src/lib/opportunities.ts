@@ -12,6 +12,17 @@ export function canConfigureCode(code: string): boolean {
   // Creation lowercases codes and the current redirect only accepts this alphabet.
   return /^[a-z0-9_-]{1,50}$/.test(code) && !RESERVED.has(code)
 }
+// Generic paths that satisfy canConfigureCode but are never store short codes (scanner and bot noise).
+export const NON_STORE_CODES: readonly string[] = [
+  'register', 'login', 'logout', 'admin', 'administrator', 'wp-admin', 'wp-login', 'wp-content', 'wp-includes', 'api', 'dashboard',
+  'signup', 'signin', 'sign-in', 'sign-up', 'index', 'home', 'favicon', 'sitemap', 'feed', 'test', 'config', 'backup', 'phpmyadmin',
+  'cgi-bin', 'vendor', 'static', 'assets',
+]
+const NON_STORE = new Set(NON_STORE_CODES)
+// True when the code could be a store short code: routable alphabet, not reserved, not generic scanner noise.
+export function isShortCodeCandidate(code: string): boolean {
+  return canConfigureCode(code) && !NON_STORE.has(code)
+}
 export function periodValue(row: Opportunity, order: keyof typeof PERIOD_ORDERS): number {
   return row[PERIOD_ORDERS[order]] ?? 0
 }

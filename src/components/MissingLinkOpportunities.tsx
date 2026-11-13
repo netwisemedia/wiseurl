@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertCircle, Download, Plus, RefreshCw, Search, Pencil } from 'lucide-react'
 import { overviewFilters, overviewRange, formatCount, reportTime } from '@/lib/overview'
-import { PERIOD_ORDERS, canConfigureCode, opportunityCsv, rankOpportunities, type OpportunityOrder, type OpportunityStatus } from '@/lib/opportunities'
+import { PERIOD_ORDERS, canConfigureCode, isShortCodeCandidate, opportunityCsv, rankOpportunities, type OpportunityOrder, type OpportunityStatus } from '@/lib/opportunities'
 import { NO_REFERRER_SOURCE } from '@/lib/missing-links'
 import { PAGE_SIZE_PARAM, parsePageSize } from '@/lib/page-size'
 import PageSizeSelect from './PageSizeSelect'
@@ -24,8 +24,13 @@ export default function MissingLinkOpportunities({ revision, onCreate, onEdit }:
   for (const key of ['from', 'to', 'traffic', 'asOf']) { const value = params.get(key); if (value) reportQuery.set(key, value) }
   const reportKey = reportQuery.toString()
   const parsed = useMemo(() => {
-    try { return { filters: overviewFilters(new URLSearchParams(reportKey)), error: null } }
-    catch (error) { return { filters: overviewFilters(new URLSearchParams()), error: error instanceof Error ? error.message : 'Invalid filters' } }
+    try {
+      const query = new URLSearchParams(reportKey)
+      // Monthly demand is the default view when the URL carries no range.
+      if (!query.get('from') && !query.get('to')) { const range = overviewRange('30d'); query.set('from', range.from); query.set('to', range.to) }
+      return { filters: overviewFilters(query), error: null }
+    }
+    catch (error) { return { filters: overviewFilters(new URLSearchParams(overviewRange('30d'))), error: error instanceof Error ? error.message : 'Invalid filters' } }
   }, [reportKey])
   const filters = parsed.filters
   const [refresh, setRefresh] = useState(0)
@@ -40,7 +45,10 @@ export default function MissingLinkOpportunities({ revision, onCreate, onEdit }:
   const pageSize = parsePageSize(params.get(PAGE_SIZE_PARAM))
   const pageKey = requestKey + status + order + search + pageSize
   const [pagination, setPagination] = useState({ key: '', page: 1 })
-  const rows = useMemo(() => data ? rankOpportunities(data.report.rows, status, order, search) : [], [data, status, order, search])
+  const showUnsupported = params.get('unsupported') === '1'
+  const reportRows = useMemo(() => data ? (showUnsupported ? data.report.rows : data.report.rows.filter(row => isShortCodeCandidate(row.code))) : [], [data, showUnsupported])
+  const hiddenCount = data ? data.report.rows.length - data.report.rows.filter(row => isShortCodeCandidate(row.code)).length : 0
+  const rows = useMemo(() => rankOpportunities(reportRows, status, order, search), [reportRows, status, order, search])
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const page = Math.min(pagination.key === pageKey ? pagination.page : 1, pages)
   const setPage = (value: number) => setPagination({ key: pageKey, page: value })
@@ -55,6 +63,12 @@ export default function MissingLinkOpportunities({ revision, onCreate, onEdit }:
     const query = new URLSearchParams(params.toString())
     query.set('view', 'opportunities')
     query.set(PAGE_SIZE_PARAM, String(value))
+    router.replace(`/dashboard?${query}`, { scroll: false })
+  }
+  const setShowUnsupported = (value: boolean) => {
+    const query = new URLSearchParams(params.toString())
+    query.set('view', 'opportunities')
+    if (value) query.set('unsupported', '1'); else query.delete('unsupported')
     router.replace(`/dashboard?${query}`, { scroll: false })
   }
   const reload = () => { if (filters.asOf) update({ asOf: null }); else setRefresh(value => value + 1) }
@@ -78,10 +92,10 @@ export default function MissingLinkOpportunities({ revision, onCreate, onEdit }:
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `wiseurl-opportunities-${filters.from}-${filters.to}.csv`; anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
-  const open = data?.report.rows.filter(row => row.status !== 'resolved') || []
+  const open = reportRows.filter(row => row.status !== 'resolved')
   const demand = open.reduce((sum, row) => sum + row.requests, 0)
   const previous = open.reduce((sum, row) => sum + row.previous_requests, 0)
-  const resolved = data?.report.rows.filter(row => row.status === 'resolved') || []
+  const resolved = reportRows.filter(row => row.status === 'resolved')
   return <div className="space-y-5">
     <div className="flex flex-wrap justify-between items-start gap-4"><div><p className="eyebrow">DEMAND WITHOUT AFFILIATE LINKS</p><h1 className="page-title">Affiliate opportunities</h1><p className="page-description">See which missing destinations deserve an affiliate link first.</p></div><div className="flex gap-2"><button className="btn btn-secondary" onClick={reload} disabled={loading}><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />Refresh</button><button className="btn btn-secondary" onClick={exportCsv} disabled={!data}><Download size={15} />Export</button></div></div>
     <ReportFilters key={reportKey} filters={filters} groups={[]} update={update} opportunities />
@@ -100,6 +114,7 @@ export default function MissingLinkOpportunities({ revision, onCreate, onEdit }:
         <div className="px-5 pb-4 flex flex-wrap gap-3">
           <label className="relative flex-1 min-w-48"><Search size={15} className="absolute left-3 top-3 text-[var(--muted-foreground)]" /><input className="input pl-9!" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search affiliate opportunities" placeholder="Search company / short code…" /></label>
           <label className="field-label">Status<select className="input" value={status} onChange={e => setStatus(e.target.value as OpportunityStatus)}><option value="open">Needs affiliate link</option><option value="resolved">Now configured</option><option value="all">All recorded codes</option></select></label>
+          <label className="flex items-center gap-2 text-xs self-end pb-3"><input type="checkbox" checked={showUnsupported} onChange={e => setShowUnsupported(e.target.checked)} />Show unsupported requests{hiddenCount ? ` (${formatCount(hiddenCount)} hidden)` : ''}</label>
           <label className="field-label">Rank by<select className="input" value={order} onChange={e => setOrder(e.target.value as OpportunityOrder)}><option value="requests">Most demand</option><option value="growth">Growing demand</option><option value="decline">Declining demand</option><option value="today">Most requests today</option><option value="yesterday">Most requests yesterday</option><option value="last_7d">Most requests, last 7 days</option><option value="last_30d">Most requests, last 30 days</option></select></label>
         </div>
         <div className="overflow-x-auto"><table className="ranking-table"><thead><tr><th>Company / short code</th><th className="numeric">Requests</th><th className="numeric">Previous</th><th>Change</th>{PERIOD_COLUMNS.map(([key, label]) => <th key={key} className="numeric" aria-sort={order === key ? 'descending' : undefined}><button type="button" className="font-inherit hover:underline" title={`Sort by requests ${label.toLowerCase()}`} onClick={() => setOrder(key)}>{label}{order === key ? ' ↓' : ''}</button></th>)}<th>Top source</th><th>Last request</th><th>Current status</th><th>Action</th></tr></thead><tbody>{rows.slice((page - 1) * pageSize, page * pageSize).map(row => <tr key={row.code}>
